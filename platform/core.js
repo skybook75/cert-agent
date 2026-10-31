@@ -250,6 +250,21 @@
     ].join("\n");
   }
 
+  // Self-Correction: 검증 AI 피드백을 넣어 답을 다시 쓰게 하는 프롬프트 (Self-Refine 방식)
+  function buildRevisePrompt(question, hits, certsMentioned, answer, verdict, rules, now) {
+    const issues = [];
+    (verdict.unsupported || []).forEach(x => issues.push(`- 근거로 확인되지 않음(삭제하거나 근거 문장으로 바꿀 것): ${x}`));
+    (verdict.missing || []).forEach(x => issues.push(`- 빠진 내용(근거에 있으면 보충): ${x}`));
+    if (rules.invalid.length) issues.push(`- 제공하지 않은 근거 번호 인용(사용 금지): ${rules.invalid.join(", ")}`);
+    if (rules.numbersNotInContext.length) issues.push(`- 근거에 없는 수치: ${rules.numbersNotInContext.join(", ")}`);
+    if (rules.commandsNotInContext.length) issues.push(`- 근거에 없는 명령 옵션: ${rules.commandsNotInContext.join(", ")}`);
+    return [buildPrompt(question, hits, certsMentioned, now), "",
+      "[이전 답변]", answer, "",
+      `[답변 검증 AI 피드백] 정확도 ${verdict.accuracy ?? "-"} · 품질 ${verdict.quality ?? "-"} · 판정 ${verdict.verdict}`,
+      verdict.comment ? `코멘트: ${verdict.comment}` : "", ...issues, "",
+      "위 피드백을 반영해 답변을 처음부터 다시 쓰세요. 근거로 확인되지 않은 내용은 빼고, 모든 문장에 실제 근거 번호를 붙이세요. 피드백이나 수정 과정은 언급하지 말고 답변만 쓰세요."].filter((x) => x !== null).join("\n");
+  }
+
   // 답변 검증: 인용 번호가 실제 제공한 근거인지, 근거 없는 답이면 표시
   function checkAnswer(answer, hits) {
     const cited = [...new Set((answer.match(/\[[A-Z]\d{2}-\d+\]/g) || []).map(s => s.slice(1, -1)))];
@@ -595,6 +610,6 @@
     findCerts, certFacts, buildPrompt, checkAnswer, extractiveAnswer, LEVEL_RANK,
     ROLES, PERMS, OWNER_SCOPED, can, isOwner, visibleCerts, IMPORT_COLUMNS, RENEWAL_STATES, validateImport, importOps, excelDate, normSerial, hashId, reconcile,
     STAGES, envId, depId, deployState, canRequestStage, deployChecks, requestDeployOps, reviewDeployOps, approveDeployOps, rollbackOps,
-    renewalReport, duplicateReport, detectApplies, chunkGuide, verifyRules, buildVerifyPrompt, normalizeVerdict, ruleVerdict };
+    renewalReport, duplicateReport, detectApplies, chunkGuide, verifyRules, buildVerifyPrompt, normalizeVerdict, ruleVerdict, buildRevisePrompt };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.CertCore = api;
 })(typeof window !== "undefined" ? window : globalThis);

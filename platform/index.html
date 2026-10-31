@@ -110,6 +110,11 @@ pre.email { white-space: pre-wrap; background: var(--bg); border: 1px solid var(
 .verify .score i { display: inline-block; width: 56px; height: 6px; border-radius: 6px; background: var(--bg); overflow: hidden; }
 .verify .score i b { display: block; height: 100%; background: var(--accent); }
 .verify ul { margin: 6px 0 0; padding-left: 18px; } .verify li { margin: 2px 0; }
+.msg.superseded { opacity: .55; }
+.msg.superseded::before { content: "1차 답변 · 검증에서 부적합 → 아래에 다시 씀"; display: block; font-size: 11.5px; font-weight: 700; color: var(--crit); margin-bottom: 4px; }
+details.agentlog { font-size: 12.5px; color: var(--muted); margin: -2px 0 10px; }
+details.agentlog summary { cursor: pointer; font-weight: 600; }
+details.agentlog ol { margin: 6px 0 0; padding-left: 20px; font-family: var(--font-mono); font-size: 12px; }
 .verify .rules { margin-top: 6px; font-size: 12px; color: var(--muted); }
 .gdrop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 12px; background: var(--bg); }
 .gdrop.over { border-color: var(--accent); background: var(--accent-soft); }
@@ -1503,11 +1508,34 @@ async function ask() {
     n.textContent = "검색형 답변(가이드 원문 인용)입니다. Claude가 연결되면 답변마다 '답변 검증 AI'의 정확도·품질 평가가 이 자리에 붙습니다.";
     $("chat").appendChild(n); $("chat").scrollTop = 1e9; return;
   }
-  const wait = document.createElement("div"); wait.className = "verify v-참고"; wait.textContent = "답변 검증 AI가 정확도·품질을 확인하고 있습니다…"; $("chat").appendChild(wait); $("chat").scrollTop = 1e9;
-  let card;
-  try { const raw = await verifierLLM(C.buildVerifyPrompt(q, hits, mentioned, text, Date.now())); card = verifyCard(C.normalizeVerdict(raw, rules), rules); }
-  catch (e) { card = verifyCard(C.ruleVerdict(rules, false), rules, `검증 AI 호출 실패(${e.code || e.message})`); }
-  wait.replaceWith(card); $("chat").scrollTop = 1e9;
+  // 검증 → (부적합이면) 피드백 반영 재작성 → 재검증 : Self-Correction 루프 (최대 2회)
+  const log = [`Plan: 질문 분류 → 인증서 인식 → 근거 검색 → 답변 생성 → 검증 → (부적합 시) 피드백 반영 재작성`,
+    `인증서 인식: ${mentioned.map((c) => c.subject_cn).join(", ") || "없음"}`,
+    `근거 검색(BM25 한글 2-gram): ${hits.map((h) => h.chunk.id).join(", ")}`, `답변 생성: Claude · 인용 ${rules.cited.length}개`];
+  let cur = { text, rules, out }, verdict = null;
+  for (let round = 0; round <= 2; round++) {
+    const wait = document.createElement("div"); wait.className = "verify v-참고"; wait.textContent = round ? "검증 피드백을 반영한 답변을 다시 검증하고 있습니다…" : "답변 검증 AI가 정확도·품질을 확인하고 있습니다…";
+    $("chat").appendChild(wait); $("chat").scrollTop = 1e9;
+    let card;
+    try { const raw = await verifierLLM(C.buildVerifyPrompt(q, hits, mentioned, cur.text, Date.now())); verdict = C.normalizeVerdict(raw, cur.rules); card = verifyCard(verdict, cur.rules); }
+    catch (e) { verdict = null; card = verifyCard(C.ruleVerdict(cur.rules, false), cur.rules, `검증 AI 호출 실패(${e.code || e.message})`); }
+    wait.replaceWith(card);
+    log.push(`검증 ${round + 1}차: ${verdict ? `정확도 ${verdict.accuracy} · 품질 ${verdict.quality} → ${verdict.verdict}` : "검증 AI 없음(규칙 검사만)"}${cur.rules.invalid.length + cur.rules.numbersNotInContext.length + cur.rules.commandsNotInContext.length ? ` · 규칙 위반 ${cur.rules.invalid.length + cur.rules.numbersNotInContext.length + cur.rules.commandsNotInContext.length}건` : ""}`);
+    if (!verdict || verdict.verdict !== "부적합" || round === 2) break;
+    // Self-Correction: 피드백을 넣어 다시 쓰기
+    log.push(`Self-Correction ${round + 1}회: 근거 없는 내용 ${verdict.unsupported.length}건 · 빠진 내용 ${verdict.missing.length}건 반영해 재작성`);
+    cur.out.classList.add("superseded");
+    const o2 = bubble("bot", "검증 피드백을 반영해 답변을 다시 쓰고 있습니다…");
+    let t2 = null;
+    try { t2 = await llm(C.buildRevisePrompt(q, hits, mentioned, cur.text, verdict, cur.rules, Date.now()), (t) => (o2.textContent = t)); } catch (e) { o2.textContent = `재작성 실패: ${e.message}`; break; }
+    o2.innerHTML = esc(t2).replace(/`([^`]+)`/g, '<code class="mono">$1</code>');
+    const m2 = document.createElement("span"); m2.className = "meta"; m2.textContent = `Claude 답변 · 검증 피드백 반영 재작성 ${round + 1}회`; o2.appendChild(m2);
+    cur = { text: t2, rules: C.verifyRules(t2, hits, mentioned, Date.now()), out: o2 };
+  }
+  const lg = document.createElement("details"); lg.className = "agentlog";
+  lg.innerHTML = `<summary>Agent 추론 로그 (${log.length}단계)</summary><ol>${log.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`;
+  $("chat").appendChild(lg); $("chat").scrollTop = 1e9;
+  console.info("[QA Agent]\n" + log.join("\n"));
 }
 $("qa-form").addEventListener("submit", (e) => { e.preventDefault(); ask(); });
 init();
