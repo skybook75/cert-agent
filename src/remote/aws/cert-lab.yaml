@@ -34,7 +34,7 @@ Resources:
   WebSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: cert-lab platform public web (HTTPS via Caddy + Let's Encrypt; login required)
+      GroupDescription: cert-lab platform public web - HTTPS via Caddy and LetsEncrypt, login required
       SecurityGroupIngress:
         - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: ACME http-01 + redirect }
         - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: platform https }

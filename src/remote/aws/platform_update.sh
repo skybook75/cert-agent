@@ -32,6 +32,6 @@ systemctl daemon-reload
 systemctl disable --now cert-notify.timer 2>/dev/null || true     # 알림은 오케스트레이터가 실행
 systemctl enable --now cert-orch.timer
 systemctl restart cert-platform
-sleep 2
+sleep 6
 echo "commit $(git rev-parse --short HEAD) · claude key: $([ -n "$K" ] && [ "$K" != None ] && echo set || echo none) · node $(node --version 2>/dev/null)"
 curl -s -m5 localhost:8000/api/health
