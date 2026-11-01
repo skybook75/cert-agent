@@ -38,6 +38,10 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.serialization import pkcs12
 
 VERSION = "1.0"
+try:                                             # Windows 콘솔(cp1252 등)에서도 한글 로그가 깨지지 않게
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # noqa: BLE001
+    pass
 CONF_DIR = Path(os.environ.get("CERT_AGENT_HOME") or (r"C:\ProgramData\cert-agent" if os.name == "nt" else "/etc/cert-agent"))
 EXTS = {".pem", ".crt", ".cer", ".der", ".pfx", ".p12"}
 LOG = []
