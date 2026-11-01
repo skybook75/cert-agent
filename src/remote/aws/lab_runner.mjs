@@ -160,6 +160,26 @@ try {
     await tab(A, "admin"); await shot(A, "서버Agent_목록_최근결과", "#ag-card");
   }
 
+
+  if (phase === "targets") {
+    const O = await page("owner"); await login(O, "own"); await tab(O, "targets");
+    const add = async (o) => { await O.fill("#tg-name", o.name); await O.fill("#tg-host", o.host); await O.selectOption("#tg-os", o.os || "Linux"); await O.selectOption("#tg-method", o.method);
+      if (o.method === "ssh") { await O.fill("#tg-port", "22"); await O.fill("#tg-user", o.user); await O.fill("#tg-pw", o.pw); }
+      await O.fill("#tg-paths", o.paths); await O.click("#tg-form button[type=submit]"); await settle(O); await sleep(500); };
+    const have = (await api(O, "GET", "api/targets")).body.map((t) => t.name);
+    if (!have.includes("쇼핑몰 웹(nginx)")) await add({ name: "쇼핑몰 웹(nginx)", host: "web01", method: "agent", paths: "/etc/nginx/ssl" });
+    if (!have.includes("결제 WAS(SSH)")) await add({ name: "결제 WAS(SSH)", host: process.env.SSH_HOST, method: "ssh", user: "certread", pw: process.env.SSH_PW, paths: "/opt/tomcat/conf/ssl" });
+    await shot(O, "수집대상_등록", "#p-targets");
+    for (const nm of ["결제 WAS(SSH)", "쇼핑몰 웹(nginx)"]) { await O.locator("#p-targets tr", { hasText: nm }).locator("[data-trun]").click(); await toast(O).catch(() => {}); await settle(O); }
+    await sleep(75000);                                   // 서버 Agent 1분 poll
+    await O.reload(); await settle(O); await tab(O, "targets");
+    const ts = (await api(O, "GET", "api/targets")).body;
+    await shot(O, "수집대상_실행결과", "#p-targets");
+    const ssh = ts.find((t) => t.method === "ssh"), ag = ts.find((t) => t.method === "agent");
+    ok("SSH 수집(에이전트 없음, 접속 비밀번호 암호화 보관)", /수집 \d+개/.test(ssh?.last_result || ""), ssh?.last_result);
+    ok("'수집 실행' → 서버 Agent 1분 poll 로 실행", /수집 \d+개/.test(ag?.last_result || ""), ag?.last_result);
+    const A = await page("admin"); await login(A, "admin"); await tab(A, "targets"); await shot(A, "수집대상_관리자전체", "#p-targets");
+  }
   if (phase === "qa") {
     const O = await page("owner"); await login(O, "own"); await tab(O, "qa");
     for (const q of ["shop.demo.test 인증서는 언제 만료되고 어떻게 갱신해?", "nginx에 갱신한 인증서를 적용한 뒤 확인할 것은?"]) {
