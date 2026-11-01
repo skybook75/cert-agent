@@ -35,7 +35,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupIngress
     Properties: { GroupId: !GetAtt LabSG.GroupId, IpProtocol: "-1", SourceSecurityGroupId: !GetAtt LabSG.GroupId, Description: lab internal }
 
-  # SSH 키 없이 SSM(세션 관리자·Run Command)으로만 접속
+  # No SSH key: access only through SSM (Session Manager / Run Command)
   LabRole:
     Type: AWS::IAM::Role
     Properties:
