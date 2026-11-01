@@ -11,6 +11,7 @@ CLI (작업 스케줄러 등록용):
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -288,10 +289,16 @@ def send_mail(cfg: dict, to: str, subject: str, body: str, timeout=10):
     import ssl
     from email.message import EmailMessage
     from email.utils import formatdate, make_msgid
-    if not cfg.get("enabled") or not cfg.get("host"):
-        raise RuntimeError("SMTP 설정이 없습니다")
     if not re.match(r"^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$", to or ""):
         raise RuntimeError("받는 사람 이메일이 없거나 형식이 맞지 않습니다")
+    if cfg.get("enabled") and cfg.get("provider") == "ses":      # AWS SES API (EC2 역할 권한, 키 저장 없음)
+        import boto3
+        boto3.client("ses", region_name=cfg.get("aws_region") or os.environ.get("AWS_REGION") or "ap-southeast-2").send_email(
+            Source=cfg.get("from_addr"), Destination={"ToAddresses": [to]},
+            Message={"Subject": {"Data": subject, "Charset": "UTF-8"}, "Body": {"Text": {"Data": body, "Charset": "UTF-8"}}})
+        return
+    if not cfg.get("enabled") or not cfg.get("host"):
+        raise RuntimeError("SMTP 설정이 없습니다")
     msg = EmailMessage()
     msg["From"], msg["To"], msg["Subject"] = cfg.get("from_addr") or "cert-platform@localhost", to, subject
     msg["Date"], msg["Message-ID"] = formatdate(localtime=True), make_msgid(domain="cert-platform")
@@ -312,6 +319,52 @@ def send_mail(cfg: dict, to: str, subject: str, body: str, timeout=10):
             pass
 
 
+def send_sms(cfg: dict, phone: str, text: str):
+    """AWS SNS 문자 발송 (EC2 역할 권한). 번호는 +82 형식으로 맞춘다."""
+    import boto3
+    num = re.sub(r"[^0-9+]", "", phone or "")
+    if num.startswith("0"):
+        num = "+82" + num[1:]
+    if not re.match(r"^\+\d{9,15}$", num):
+        raise RuntimeError("휴대폰 번호 형식 오류")
+    boto3.client("sns", region_name=cfg.get("aws_region") or os.environ.get("AWS_REGION") or "ap-southeast-2").publish(
+        PhoneNumber=num, Message=text[:300], MessageAttributes={"AWS.SNS.SMS.SMSType": {"DataType": "String", "StringValue": "Transactional"}})
+
+
+def send_push(cfg: dict, title: str, text: str, priority="high"):
+    """휴대폰 푸시 — ntfy(앱에서 구독한 주제로 전달). 주제 이름은 추측하기 어려운 값으로 설정."""
+    topic = cfg.get("push_topic")
+    if not topic:
+        raise RuntimeError("푸시 주제 미설정")
+    req = urllib.request.Request(f"https://ntfy.sh/{topic}", data=text[:1000].encode("utf-8"), method="POST",
+                                 headers={"Title": "=?UTF-8?B?" + base64.b64encode(title.encode("utf-8")).decode() + "?=", "Priority": priority, "Tags": "warning"})
+    urllib.request.urlopen(req, timeout=10).read()
+
+
+def channel_notify(store: Store, n: dict, cert: dict) -> dict:
+    """문자·푸시 채널: 설정의 수신 번호(당직)·담당자 번호로 짧게 알린다."""
+    cfg = smtp_settings(store)
+    out = {}
+    short = f"[인증서] {n.get('title', '')}"[:120]
+    if cfg.get("sms_enabled"):
+        nums = [x for x in [cert.get("owner_phone"), *(cfg.get("sms_to") or [])] if x]
+        ok, err = 0, ""
+        for num in dict.fromkeys(nums):
+            try:
+                send_sms(cfg, num, short)
+                ok += 1
+            except Exception as e:  # noqa: BLE001
+                err = str(e)[:150]
+        out["sms_status"], out["sms_error"] = ("발송" if ok else "실패"), (err or None)
+    if cfg.get("push_topic"):
+        try:
+            send_push(cfg, "인증서 만료 알림", f"{n.get('title', '')}\n{n.get('body', '')[:300]}")
+            out["push_status"], out["push_error"] = "발송", None
+        except Exception as e:  # noqa: BLE001
+            out["push_status"], out["push_error"] = "실패", str(e)[:150]
+    return out
+
+
 def mail_notifications(store: Store, ids=None, actor="알림 Agent") -> dict:
     """알림의 이메일 초안을 담당자 이메일로 발송. ids 가 없으면 아직 발송하지 않은 열린 알림 전체."""
     cfg = smtp_settings(store)
@@ -329,6 +382,9 @@ def mail_notifications(store: Store, ids=None, actor="알림 Agent") -> dict:
             send_mail(cfg, to, n.get("title", "인증서 만료 알림"), body.lstrip("\n"))
             store.update("notifications", n["id"], {"mail_status": "발송", "mail_to": to, "mailed_at": now_iso(), "mail_error": None})
             sent.append(n["id"])
+            ch = channel_notify(store, n, c)
+            if ch:
+                store.update("notifications", n["id"], ch)
         except Exception as e:   # noqa: BLE001  (발송 실패는 알림별로 기록하고 계속)
             store.update("notifications", n["id"], {"mail_status": "실패", "mail_to": to, "mail_error": str(e)[:200]})
             failed.append({"id": n["id"], "to": to, "error": str(e)[:200]})

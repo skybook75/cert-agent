@@ -5,7 +5,7 @@
 set -euxo pipefail
 ROLE="$1"
 SRC=/opt/cert-agent-src
-dnf install -y python3 python3-cryptography git openssl
+dnf install -y python3 python3-cryptography python3-boto3 git openssl
 [ -d $SRC ] || git clone --depth 1 https://github.com/skybook75/cert-agent $SRC
 P=$SRC/src
 hostnamectl set-hostname "$ROLE"
@@ -18,6 +18,7 @@ if [ "$ROLE" = platform ]; then
   : > /etc/cert-platform/env; chmod 600 /etc/cert-platform/env
   K=$(aws ssm get-parameter --region "$REGION" --name /cert-lab/anthropic-api-key --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
   [ -n "$K" ] && [ "$K" != None ] && echo "ANTHROPIC_API_KEY=$K" >> /etc/cert-platform/env
+  echo "AWS_REGION=$REGION" >> /etc/cert-platform/env
   cat > /etc/systemd/system/cert-platform.service <<EOF
 [Unit]
 Description=Cert management platform
@@ -39,8 +40,25 @@ Restart=always
 [Install]
 WantedBy=multi-user.target
 EOF
+  # 알림 Agent: 매일 09:05(KST) 만료 점검 → 미발송 알림을 이메일·문자·푸시로 발송
+  cat > /etc/systemd/system/cert-notify.service <<EOF
+[Unit]
+Description=Cert notify agent
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/cert-platform/env
+ExecStart=/usr/bin/python3 $P/agents.py notify --send --db /var/lib/cert-platform/platform.db
+EOF
+  cat > /etc/systemd/system/cert-notify.timer <<EOF
+[Unit]
+Description=Daily cert notify
+[Timer]
+OnCalendar=*-*-* 00:05:00 UTC
+[Install]
+WantedBy=timers.target
+EOF
   systemctl daemon-reload
-  systemctl enable --now cert-platform smtp-sink
+  systemctl enable --now cert-platform smtp-sink cert-notify.timer
 fi
 
 if [ "$ROLE" = web01 ]; then

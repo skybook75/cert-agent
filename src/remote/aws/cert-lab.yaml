@@ -51,6 +51,9 @@ Resources:
               - Effect: Allow
                 Action: [ssm:GetParameter]
                 Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cert-lab/*
+              - Effect: Allow
+                Action: [ses:SendEmail, ses:SendRawEmail, sns:Publish]
+                Resource: "*"
   LabProfile:
     Type: AWS::IAM::InstanceProfile
     Properties: { Roles: [!Ref LabRole] }

@@ -271,12 +271,13 @@ class Handler(BaseHTTPRequestHandler):
                 s = self._require(method, "settings.manage")
                 to = str(self._body().get("to", ""))[:200]
                 try:
-                    agents.send_mail(agents.smtp_settings(STORE), to, "[인증서 관리 플랫폼] SMTP 연결 테스트",
-                                     "인증서 관리 플랫폼의 SMTP 설정이 정상입니다.")
+                    cfg = agents.smtp_settings(STORE)
+                    agents.send_mail(cfg, to, "[인증서 관리 플랫폼] 알림 채널 테스트", "인증서 관리 플랫폼의 이메일 발송 설정이 정상입니다.")
                 except Exception as e:  # noqa: BLE001
                     raise Http(400, f"발송 실패: {str(e)[:200]}") from None
-                self._audit(s["user"], "SMTP 테스트", to)
-                return self._json({"ok": True})
+                ch = agents.channel_notify(STORE, {"title": "알림 채널 테스트", "body": "인증서 관리 플랫폼 알림 채널(문자·푸시) 테스트입니다."}, {})
+                self._audit(s["user"], "알림 채널 테스트", f"메일 {to} · 문자 {ch.get('sms_status', '미사용')} · 푸시 {ch.get('push_status', '미사용')}")
+                return self._json({"ok": True, **ch})
             if path == "/api/settings/smtp":
                 s = self._require(method, "settings.manage")
                 if method == "GET":
@@ -285,7 +286,12 @@ class Handler(BaseHTTPRequestHandler):
                     b = self._body()
                     cfg = {"enabled": bool(b.get("enabled")), "host": str(b.get("host", ""))[:200], "port": int(b.get("port") or 25),
                            "security": b.get("security") if b.get("security") in ("none", "starttls", "ssl") else "none",
-                           "username": str(b.get("username", ""))[:200], "from_addr": str(b.get("from_addr", ""))[:200]}
+                           "username": str(b.get("username", ""))[:200], "from_addr": str(b.get("from_addr", ""))[:200],
+                           "provider": "ses" if b.get("provider") == "ses" else "smtp", "aws_region": re.sub(r"[^a-z0-9-]", "", str(b.get("aws_region", "")))[:20],
+                           "sms_enabled": bool(b.get("sms_enabled")), "sms_to": [re.sub(r"[^0-9+]", "", str(x))[:16] for x in (b.get("sms_to") or [])][:5],
+                           "push_topic": re.sub(r"[^A-Za-z0-9_-]", "", str(b.get("push_topic", "")))[:64]}
+                    if cfg["provider"] == "ses":
+                        cfg["enabled"] = True
                     STORE.set("settings", "smtp", cfg)
                     self._audit(s["user"], "SMTP 설정 변경", f"{cfg['host']}:{cfg['port']} {cfg['security']}")
                     return self._json(cfg)
