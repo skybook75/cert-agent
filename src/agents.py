@@ -400,12 +400,24 @@ LLM_STATE = {"model": None, "last_error": None}
 MODEL_CANDIDATES = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-sonnet-4-5", "claude-3-5-sonnet-latest"]
 
 
+def _available_models(key: str) -> list[str]:
+    """계정에서 쓸 수 있는 모델 목록(Models API) — Sonnet 계열 우선, 최신순."""
+    try:
+        req = urllib.request.Request("https://api.anthropic.com/v1/models?limit=50", headers={"x-api-key": key, "anthropic-version": "2023-06-01"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            ids = [m["id"] for m in json.loads(r.read()).get("data", [])]
+    except Exception:  # noqa: BLE001
+        return []
+    rank = lambda i: (0 if "sonnet" in i else 1 if "opus" in i else 2)   # noqa: E731
+    return sorted(ids, key=rank)[:6]
+
+
 def ask_claude(prompt: str, model: str | None = None, timeout=120, max_tokens=900) -> str:
     """Claude Messages API. 모델이 계정에서 안 되면(400/404) 다음 후보로 자동 전환하고 성공한 모델을 기억한다."""
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise RuntimeError("no_key")
-    cands = [m for m in [model, os.environ.get("CLAUDE_MODEL"), LLM_STATE["model"], *MODEL_CANDIDATES] if m]
+    cands = [m for m in [model, os.environ.get("CLAUDE_MODEL"), LLM_STATE["model"]] if m] or _available_models(key) or MODEL_CANDIDATES
     last = None
     for m in dict.fromkeys(cands):
         body = json.dumps({"model": m, "max_tokens": max_tokens, "temperature": 0, "messages": [{"role": "user", "content": prompt}]}).encode()
