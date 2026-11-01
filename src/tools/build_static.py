@@ -62,6 +62,7 @@ footer{color:var(--muted);font-size:13px;margin-top:28px}
 <main>
 <h1>인증서 관리 AI Agent</h1>
 <p class="sub">2026 AI Master Project · SK AX AI Talent Lab</p>
+<a class="card" href="https://certagent-ai.duckdns.org/"><b>AWS 운영 플랫폼(실서버) →</b><p>AWS EC2 서버 4대(nginx·Tomcat·IIS)와 연결된 실제 운영판 · 서버 Agent 수집·배포 · AI 운영(오케스트레이터·유지보수 Agent) · 로그인 필요</p></a>
 <a class="card" href="poc-review/"><b>PoC 단계별 리뷰 →</b><p>스캔 → 파싱 → 저장 → 조회 단계별 결과와 근거, 수집 진행 현황, 브라우저에서 직접 실행</p></a>
 <a class="card" href="platform/"><b>인증서 관리 플랫폼 →</b><p>대시보드 · 관리대장 · 수집 승인 · 4단계 배포 · 알림 · 보고서 · PFX 비밀번호 보관함 · QA 챗봇</p></a>
 <a class="card" href="test-report/"><b>인수 테스트 결과 →</b><p>관리자 관점 운영 시나리오 12개 + 실제 Claude QA · 단계별 증적 화면 · 발견사항과 조치</p></a>
