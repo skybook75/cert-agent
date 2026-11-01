@@ -79,7 +79,9 @@ try {
     for (const [h, os_, st] of [["web01", "Linux", "prod"], ["was01", "Linux", ""], ["win01", "Windows", ""]]) {
       if (S.tokens[h]) continue;
       await A.fill("#ag-host", h); await A.selectOption("#ag-os", os_); await A.selectOption("#ag-stage", st);
-      await A.click("#ag-form button[type=submit]"); await A.waitForSelector("#ag-token:not([hidden])");
+      await A.evaluate(() => { const b = document.getElementById("ag-token"); if (b) { b.hidden = true; b.innerHTML = ""; } });
+      await A.click("#ag-form button[type=submit]");
+      await A.waitForFunction(() => /"token": "[A-Za-z0-9_-]{20,}"/.test(document.querySelector("#ag-token pre")?.textContent || ""), null, { timeout: 30000 });
       const conf = JSON.parse(await A.textContent("#ag-token pre"));
       S.tokens[h] = conf.token; save();
       await A.evaluate(() => { const pre = document.querySelector("#ag-token pre"); pre.textContent = pre.textContent.replace(/"token": "[^"]+"/, '"token": "●●●●●●●● (한 번만 표시 · 캡처에서 가림)"'); });
