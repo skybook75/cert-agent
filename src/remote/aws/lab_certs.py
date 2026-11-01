@@ -84,9 +84,10 @@ def main():
             write(ssl / "api" / "api.crt", der(leaf("api.demo.test", ka, 25)))
             write(ssl / "old" / "old-gw.pem", pem(leaf("old-gw.demo.test", rsa.generate_private_key(65537, 2048), -3)))
             out = {"shop": fp(c)}
-        elif mode in ("renew", "badrenew"):
-            k2 = k if mode == "renew" else rsa.generate_private_key(65537, 2048)
-            c = leaf("shop.demo.test", k2, 397, life=398)
+        elif mode in ("renew", "badrenew") or mode.startswith("renew"):
+            days = int(mode[5:]) if mode[5:].isdigit() else 397      # renew730 → 730일짜리 갱신본(시연용)
+            k2 = rsa.generate_private_key(65537, 2048) if mode == "badrenew" else k
+            c = leaf("shop.demo.test", k2, days, life=days + 1)
             write(ssl / "incoming" / f"shop_{mode}.pem", pem(c))
             out = {mode: fp(c)}
     elif role == "was01":
