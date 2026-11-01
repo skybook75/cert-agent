@@ -13,6 +13,8 @@
   - PFX 비밀번호: 담당자가 플랫폼에서 입력 → AES-256-GCM 암호화 후 보관(vault.py, 키는 DB 와 분리된 키 파일).
                   화면·API 로 평문을 다시 내보내지 않고, 수집 Agent 가 PFX 를 열 때만 메모리에서 복호화
 """
+from __future__ import annotations
+
 import argparse
 import hashlib
 import hmac

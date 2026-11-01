@@ -5,6 +5,8 @@
   등록 예 (Claude Code):  claude mcp add cert-platform -- python3 /opt/cert-agent-src/src/mcp_server.py --db /var/lib/cert-platform/platform.db
 읽기 도구는 자유롭게, 상태를 바꾸는 도구(run_orchestration)는 알림 생성까지만 하며 배포·삭제 도구는 제공하지 않는다.
 """
+from __future__ import annotations
+
 import argparse
 import json
 import sys

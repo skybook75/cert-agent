@@ -15,6 +15,8 @@
   - PFX 비밀번호는 플랫폼 보관함에서 이 Agent 의 공개키(RSA-OAEP)로 감싸 받은 뒤 메모리에서만 풂(디스크·로그 기록 없음)
   - Agent 키쌍은 설정 폴더에 600 권한으로 보관, 토큰은 플랫폼에서 Agent 마다 따로 발급
 """
+from __future__ import annotations
+
 import base64
 import hashlib
 import json
