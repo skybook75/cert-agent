@@ -105,7 +105,7 @@ Resources:
     Condition: Win
     Properties:
       ImageId: !Ref WindowsAmi
-      InstanceType: t3.medium
+      InstanceType: t3.small
       IamInstanceProfile: !Ref LabProfile
       SecurityGroupIds: [!GetAtt LabSG.GroupId]
       MetadataOptions: { HttpTokens: required }
