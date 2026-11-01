@@ -92,6 +92,20 @@ dl.kv dd { overflow-wrap: anywhere; }
 .msg .meta { display: block; margin-top: 8px; font-size: 12px; color: var(--muted); white-space: normal; }
 .msg .meta a { color: var(--accent); }
 .examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.orch svg { width: 100%; height: auto; display: block; }
+.orch .node rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+.orch .node text { fill: var(--ink); font-size: 12px; } .orch .node .sub { fill: var(--muted); font-size: 10.5px; }
+.orch .node.ok rect { stroke: var(--ok); fill: var(--ok-soft); } .orch .node.bad rect { stroke: var(--crit); fill: var(--crit-soft); }
+.orch .node.human rect { stroke: var(--warn); fill: var(--warn-soft); } .orch .node.run rect { stroke: var(--accent); stroke-width: 3; }
+.orch .edge { stroke: var(--line); stroke-width: 1.5; fill: none; } .orch .edge.on { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 4; animation: dash 0.8s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -20; } }
+@media (prefers-reduced-motion: reduce) { .orch .edge.on { animation: none; } }
+.trace { list-style: none; margin: 8px 0 0; padding: 0; } .trace li { border-left: 3px solid var(--line); padding: 6px 10px; margin: 0 0 6px; background: var(--bg); border-radius: 0 8px 8px 0; font-size: 13px; }
+.trace li.ok { border-left-color: var(--ok); } .trace li.bad { border-left-color: var(--crit); } .trace li.human { border-left-color: var(--warn); }
+.finding { border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0 0 8px; }
+.finding.f-높음 { border-left-color: var(--crit); } .finding.f-중간 { border-left-color: var(--warn); } .finding.f-낮음 { border-left-color: var(--accent); }
+.finding pre { white-space: pre-wrap; font-size: 12px; color: var(--muted); margin: 6px 0; max-height: 120px; overflow: auto; }
+pre.diff { white-space: pre; overflow: auto; font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; max-height: 260px; }
 .examples button, .chips button { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips button[aria-pressed="true"] { background: var(--accent); color: var(--surface); border-color: var(--accent); }
@@ -175,6 +189,7 @@ details.agentlog ol { margin: 6px 0 0; padding-left: 20px; font-family: var(--fo
       </div>
       <div class="card" id="qa-guides"></div>
     </section>
+    <section role="tabpanel" id="p-ops" hidden></section>
     <section role="tabpanel" id="p-hist" hidden></section>
     <section role="tabpanel" id="p-admin" hidden></section>
   </div>
@@ -263,6 +278,8 @@ async function load() {
 }
 
 // ───────── 시작: PC 서버(로그인) 또는 웹 공유 DB(시연 모드)
+window.addEventListener("error", (e) => { if (S.mode === "server" && S.user) fetch("api/maint/client-error", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": S.csrf || "" }, body: JSON.stringify({ message: String(e.message || ""), where: `${S.tab || ""} ${(e.filename || "").split("/").pop()}:${e.lineno || 0}`, stack: String(e.error?.stack || "") }) }).catch(() => {}); });
+window.addEventListener("unhandledrejection", (e) => { if (S.mode === "server" && S.user && !(e.reason?.message || "").match(/권한|로그인|CSRF/)) fetch("api/maint/client-error", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": S.csrf || "" }, body: JSON.stringify({ message: String(e.reason?.message || e.reason || ""), where: `${S.tab || ""} promise`, stack: String(e.reason?.stack || "") }) }).catch(() => {}); });
 async function init() {
   try { const g = await fetch("guides.json"); S.guides = await g.json(); S.index = C.buildIndex(S.guides); } catch { S.guides = []; S.index = C.buildIndex([]); }
   renderExamples();
@@ -380,7 +397,7 @@ function showAuth(kind, msg) {
 // ───────── 탭 (역할별)
 const TABS = [
   ["dash", "대시보드", null], ["ledger", "관리대장", ["관리자", "검토자", "승인자", "조회자"]], ["disc", "수집 승인", ["관리자", "검토자", "승인자", "조회자"]],
-  ["certs", "인증서", null], ["vault", "PFX 비밀번호", ["관리자", "담당자"]], ["deploy", "배포", null], ["noti", "알림함", null], ["report", "보고서", null], ["qa", "QA 챗봇", null], ["hist", "이력", null], ["admin", "관리", ["관리자"]],
+  ["certs", "인증서", null], ["vault", "PFX 비밀번호", ["관리자", "담당자"]], ["deploy", "배포", null], ["noti", "알림함", null], ["report", "보고서", null], ["qa", "QA 챗봇", null], ["ops", "AI 운영", ["관리자"]], ["hist", "이력", null], ["admin", "관리", ["관리자"]],
 ];
 function buildTabs() {
   const vis = TABS.filter(([, , r]) => !r || r.includes(role()));
@@ -393,6 +410,7 @@ function select(tab) {
   S.tab = tab;
   document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
   document.querySelectorAll("section[role=tabpanel]").forEach((p) => (p.hidden = p.id !== "p-" + tab));
+  if (tab === "ops") loadOps();
   if (tab === "qa") $("qa-engine").textContent = `발급기관별 갱신 가이드 ${S.guides.length}종과 등록 인증서 정보를 근거로 답합니다. 답변 엔진: ${S.llm ? "Claude" : "검색형(근거 문단 제시)"}`;
 }
 async function startApp() {
@@ -1232,6 +1250,106 @@ function renderHist() {
       ${tbl(["시각(UTC)", "처리자", "작업", "내용"], aud.map((a) => `<tr><td class="mono">${dt(a.at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.detail)}</td></tr>`), "조건에 맞는 기록이 없습니다.")}</div>`;
   $("au-q").oninput = (e) => { af.q = e.target.value; clearTimeout(renderHist.t); renderHist.t = setTimeout(() => { renderHist(); const i = $("au-q"); i.focus(); i.setSelectionRange(af.q.length, af.q.length); }, 250); };
   $("au-act").onchange = (e) => { af.action = e.target.value; renderHist(); };
+}
+
+// ───────── AI 운영: 오케스트레이터 · 유지보수 Agent
+const OPS_GOALS = ["일일 운영 점검", "이번 주 만료 임박 인증서 점검하고 알려줘", "배포 상태 확인", "버그·오류 진단"];
+const MAINT_EX = ["진단해줘", "미발송 알림 다시 보내줘", "대시보드에 '이번 주 만료' 타일을 추가해줘", "되돌려줘"];
+async function loadOps() {
+  if (S.mode !== "server" || role() !== "관리자") return renderOps();
+  try { S.ops = await api("GET", "api/ops/state"); } catch (e) { S.ops = { error: e.message }; }
+  renderOps();
+}
+function orchSvg(active, states) {
+  const ag = S.ops?.agents || [], W = 760, cx = W / 2, n = ag.length;
+  const pos = ag.map((a, i) => ({ a, x: 70 + i * ((W - 140) / Math.max(1, n - 1)), y: 170 }));
+  const node = (x, y, w, title, sub, cls) => `<g class="node ${cls}" transform="translate(${x - w / 2},${y - 26})"><rect width="${w}" height="52" rx="10"/><text x="${w / 2}" y="22" text-anchor="middle">${esc(title)}</text><text class="sub" x="${w / 2}" y="39" text-anchor="middle">${esc(sub)}</text></g>`;
+  return `<svg viewBox="0 0 ${W} 210" role="img" aria-label="Agent 오케스트레이션 그래프">
+    ${pos.map((p) => `<path class="edge ${active === p.a.id ? "on" : ""}" d="M${cx},62 C${cx},110 ${p.x},110 ${p.x},144"/>`).join("")}
+    ${node(cx, 36, 230, "오케스트레이터 (Supervisor)", S.ops?.llm ? "계획: Claude · 실행·검증·보고" : "계획: 규칙 템플릿 · 실행·검증·보고", active ? "run" : "")}
+    ${pos.map((p) => node(p.x, p.y, 112, p.a.name, states[p.a.id] || "대기", { 정상: "ok", 확인: "bad", 승인필요: "human" }[states[p.a.id]] || (active === p.a.id ? "run" : ""))).join("")}
+  </svg>`;
+}
+function stepStates(run) {
+  const st = {};
+  for (const x of run?.steps || []) { const v = !x.ok ? "확인" : x.needs_human ? "승인필요" : "정상"; if (st[x.agent] !== "확인") st[x.agent] = st[x.agent] === "승인필요" && v === "정상" ? "승인필요" : v; }
+  return st;
+}
+const traceHtml = (run) => `<ol class="trace">${(run.steps || []).map((x) => `<li class="${!x.ok ? "bad" : x.needs_human ? "human" : "ok"}"><b>${esc((S.ops.agents.find((a) => a.id === x.agent) || { name: "오케스트레이터" }).name)}</b> · ${esc(x.label)} <span class="note">${x.ms}ms</span><br>${esc(x.summary)}</li>`).join("")}</ol>`;
+function renderOps() {
+  const P = $("p-ops");
+  if (!P) return;
+  if (S.mode !== "server") {
+    P.innerHTML = `<div class="card"><h2>AI 운영 — 오케스트레이터 · 유지보수 Agent</h2><p class="note">여러 Agent(수집·대조검증·알림·배포·QA·유지보수)를 감독자(Supervisor) Agent가 지휘하고, 유지보수 Agent가 오류·개선점을 스스로 찾아 수정안을 테스트 후 반영합니다. 이 기능은 서버판(AWS 운영 플랫폼)에서 동작합니다.</p></div>`;
+    return;
+  }
+  const o = S.ops;
+  if (!o) { P.innerHTML = `<div class="card"><p class="note">불러오는 중…</p></div>`; return; }
+  if (o.error) { P.innerHTML = `<div class="card"><p class="note">불러오기 실패: ${esc(o.error)}</p></div>`; return; }
+  const last = o.runs[0], open = o.findings.filter((f) => f.status === "열림");
+  P.innerHTML = `
+    <div class="card orch"><h2>오케스트레이터 Agent <span class="note">Multi-Agent · Supervisor 패턴 · Human-in-the-loop</span></h2>
+      <p class="note">목표를 주면 오케스트레이터가 실행 계획을 세우고 각 Agent를 순서대로 호출해 결과를 검증·보고합니다. 배포 실행처럼 되돌리기 어려운 일은 하지 않고 '사람 승인 필요'로 남깁니다. 매일 09:05(KST)에 '일일 운영 점검'이 자동 실행됩니다.</p>
+      <div id="orch-graph">${orchSvg(null, stepStates(last))}</div>
+      <div class="examples" style="margin:8px 0">${OPS_GOALS.map((g) => `<button type="button" data-goal="${esc(g)}">${esc(g)}</button>`).join("")}</div>
+      <form class="row" id="orch-form"><input class="f grow" id="orch-goal" placeholder="예) 이번 주 만료 임박 인증서 점검하고 담당자에게 알려줘" maxlength="300" aria-label="목표"><button class="btn primary" type="submit" id="orch-run">실행</button></form>
+      <div id="orch-out">${last ? `<p class="note" style="margin-top:10px">최근 실행 · ${dt(last.started_at)} · ${esc(last.actor)} · 목표 “${esc(last.goal)}” · ${esc(last.plan_note)} · ${last.ms}ms</p>${pill(last.status, last.status === "정상" ? "ok" : "warn")} ${esc(last.result)}${traceHtml(last)}` : `<p class="empty">아직 실행 이력이 없습니다. 위에서 목표를 골라 실행해 보세요.</p>`}</div>
+      ${o.runs.length > 1 ? `<details><summary class="note">실행 이력 ${o.runs.length}건</summary>${tbl(["시각", "목표", "단계", "결과"], o.runs.map((r) => `<tr><td class="mono nw">${dt(r.started_at)}</td><td>${esc(r.goal)}</td><td class="num">${r.steps.length}</td><td>${pill(r.status, r.status === "정상" ? "ok" : "warn")} <span class="note">${esc(r.result.slice(0, 90))}</span></td></tr>`), "", 620)}</details>` : ""}
+    </div>
+    <div class="cols2">
+      <div class="card"><h2>유지보수·개선 Agent <span class="note">${o.llm ? "Claude 연결 · 코드 수정 가능" : "규칙형(Claude 키 설정 시 코드 수정)"}</span></h2>
+        <p class="note">버그 수정·기능 개선을 말로 요청하면 원인 분석 → 수정안 → <b>임시 사본에서 자동 테스트(컴파일·문법·서버 기동·화면 응답)</b> → 통과 시에만 반영하고 리포트를 남깁니다. 실패하면 오류를 근거로 최대 2번 다시 고치고(Self-Correction), 그래도 실패하면 반영하지 않습니다.</p>
+        <div class="examples" style="margin-bottom:8px">${MAINT_EX.map((g) => `<button type="button" data-mx="${esc(g)}">${esc(g)}</button>`).join("")}</div>
+        <div class="chat" id="mchat" style="max-height:340px">${(o.chat || []).map((m) => `<div class="msg ${m.role === "user" ? "me" : "bot"}">${esc(m.text)}${m.report ? `<span class="meta">리포트 ${esc(m.report)} · ${esc(m.status || "")}</span>` : ""}</div>`).join("") || `<p class="note">예) “수집 승인 화면에서 담당자 입력칸을 기본으로 내 이름으로 채워줘”, “진단해줘”</p>`}</div>
+        <form class="row" id="mchat-form" style="margin-top:8px"><input class="f grow" id="mchat-in" placeholder="버그 수정·기능 개선 요청 또는 질문" maxlength="2000" aria-label="유지보수 Agent에게 요청"><button class="btn primary" type="submit" id="mchat-send">보내기</button></form>
+      </div>
+      <div class="card"><h2>자가 진단 · 버그 리포트·개선 제안 <span class="note">열림 ${open.length}건 · 미해결 오류 ${o.errors}건</span></h2>
+        <div class="row" style="margin-bottom:8px"><button class="btn" id="diag-run">지금 진단</button><span class="note">서버·화면 오류, 수집·배포 실패, 느린 API, 데이터 품질, Agent 미접속을 점검합니다.</span></div>
+        ${o.findings.slice(0, 20).map((f) => `<div class="finding f-${esc(f.severity)}"><div class="row"><b class="grow">${esc(f.title)}</b>${pill(f.kind, "muted")} ${pill(f.severity, f.severity === "높음" ? "bad" : f.severity === "중간" ? "warn" : "muted")} ${pill(f.status, f.status === "열림" ? "warn" : "ok")}</div>
+          ${f.evidence ? `<pre>${esc(f.evidence)}</pre>` : ""}<p class="note" style="margin:4px 0">제안: ${esc(f.proposal)}</p>${f.fix_result ? `<p class="note">반영 결과: ${esc(f.fix_result)}</p>` : ""}
+          ${f.status === "열림" ? `<div class="row">${f.fix ? `<button class="btn primary sm" data-ffix="${esc(f.id)}">${f.fix.type === "llm_patch" ? "수정안 만들어 반영" : "반영"}</button>` : ""}${f.link ? `<button class="btn sm" data-flink="${esc(f.link)}">해당 화면</button>` : ""}<button class="btn sm" data-fdis="${esc(f.id)}">무시</button></div>` : ""}</div>`).join("") || `<p class="empty">진단 결과가 없습니다. '지금 진단'을 눌러 보세요.</p>`}
+      </div>
+    </div>
+    <div class="card"><h2>개선 결과 리포트</h2>
+      ${o.reports.map((r) => `<details class="finding"><summary><b>${esc(r.request.slice(0, 90))}</b> ${pill(r.status, r.status === "반영" ? "ok" : r.status === "되돌림" ? "muted" : "warn")} <span class="note">${dt(r.at)} · ${esc(r.actor)}</span></summary>
+        <p>${esc(r.summary || "")}</p><ol class="trace">${(r.steps || []).map((x) => `<li class="${x.ok ? "ok" : "bad"}"><b>${esc(x.step)}</b><br><span style="white-space:pre-wrap">${esc(x.detail)}</span></li>`).join("")}</ol>
+        ${r.diff ? `<pre class="diff">${esc(r.diff)}</pre>` : ""}${r.status === "반영" ? `<button class="btn danger sm" data-rb="${esc(r.id)}">이 반영 되돌리기</button>` : ""}</details>`).join("") || `<p class="empty">아직 리포트가 없습니다.</p>`}
+      ${o.perf?.length ? `<h3>API 응답 시간 (최근)</h3>${tbl(["API", "건수", "p50(ms)", "p95(ms)"], o.perf.map((x) => `<tr><td class="mono">${esc(x.path)}</td><td class="num">${x.n}</td><td class="num">${x.p50}</td><td class="num">${x.p95}</td></tr>`), "", 480)}` : ""}
+    </div>`;
+  P.querySelectorAll("[data-goal]").forEach((b) => (b.onclick = () => { $("orch-goal").value = b.dataset.goal; runOrch(); }));
+  $("orch-form").onsubmit = (e) => { e.preventDefault(); runOrch(); };
+  P.querySelectorAll("[data-mx]").forEach((b) => (b.onclick = () => { $("mchat-in").value = b.dataset.mx; sendMaint(); }));
+  $("mchat-form").onsubmit = (e) => { e.preventDefault(); sendMaint(); };
+  $("diag-run").onclick = async () => { $("diag-run").disabled = true; try { await api("POST", "api/ops/diagnose"); toast("자가 진단을 마쳤습니다"); } catch (e) { toast(e.message); } await loadOps(); };
+  P.querySelectorAll("[data-ffix]").forEach((b) => (b.onclick = async () => { b.disabled = true; b.textContent = "처리 중…"; try { const r = await api("POST", `api/ops/fix/${b.dataset.ffix}`); toast(r.result); } catch (e) { toast(`반영 실패: ${e.message}`); } await loadOps(); }));
+  P.querySelectorAll("[data-fdis]").forEach((b) => (b.onclick = async () => { await api("POST", `api/ops/dismiss/${b.dataset.fdis}`); await loadOps(); }));
+  P.querySelectorAll("[data-flink]").forEach((b) => (b.onclick = () => select(b.dataset.flink)));
+  P.querySelectorAll("[data-rb]").forEach((b) => (b.onclick = async () => { if (!confirm("이 반영을 백업으로 되돌리고 서버를 다시 시작할까요?")) return; try { await api("POST", `api/ops/rollback/${b.dataset.rb}`); toast("되돌렸습니다. 잠시 후 새로고침하세요"); } catch (e) { toast(e.message); } setTimeout(loadOps, 2500); }));
+  const mc = $("mchat"); if (mc) mc.scrollTop = mc.scrollHeight;
+}
+async function runOrch() {
+  const goal = $("orch-goal").value.trim() || "일일 운영 점검";
+  $("orch-run").disabled = true; $("orch-out").innerHTML = `<p class="note">오케스트레이터가 계획을 세우고 Agent를 호출하는 중…</p>`;
+  $("orch-graph").innerHTML = orchSvg("collector", {});
+  let run;
+  try { run = await api("POST", "api/ops/orchestrate", { goal }); } catch (e) { toast(`실행 실패: ${e.message}`); $("orch-run").disabled = false; return; }
+  // 실행 흐름을 단계별로 재생(그래프에서 어느 Agent가 일하는지 표시)
+  const st = {};
+  for (let i = 0; i < run.steps.length; i++) {
+    const x = run.steps[i];
+    $("orch-graph").innerHTML = orchSvg(x.agent, st);
+    $("orch-out").innerHTML = `<p class="note" style="margin-top:10px">계획(${esc(run.plan_note)}): ${run.plan.map((t) => esc(S.ops.tools[t]?.label || t)).join(" → ")}</p>${traceHtml({ steps: run.steps.slice(0, i + 1) })}`;
+    st[x.agent] = !x.ok ? "확인" : x.needs_human ? "승인필요" : (st[x.agent] || "정상");
+    await new Promise((r) => setTimeout(r, 450));
+  }
+  await loadOps(); toast(`오케스트레이션 완료: ${run.status} — ${run.result.slice(0, 60)}`);
+}
+async function sendMaint() {
+  const m = $("mchat-in").value.trim(); if (!m) return;
+  const box = $("mchat"); box.insertAdjacentHTML("beforeend", `<div class="msg me">${esc(m)}</div><div class="msg bot" id="m-wait">유지보수 Agent가 처리하는 중… (코드 수정은 분석·테스트 때문에 1~3분 걸릴 수 있습니다)</div>`); box.scrollTop = box.scrollHeight;
+  $("mchat-in").value = ""; $("mchat-send").disabled = true;
+  try { await api("POST", "api/ops/chat", { message: m }); } catch (e) { toast(e.message); }
+  $("mchat-send").disabled = false; await loadOps();
 }
 
 // ───────── 관리 (사용자·SMTP)

@@ -27,7 +27,8 @@ sys.path.insert(0, str(BASE))
 import certlib  # noqa: E402  (v2 파싱·상태 판정 재사용)
 
 COLLECTIONS = {"certificates", "discoveries", "renewals", "notifications", "scan_runs", "audit", "settings",
-               "users", "deployments", "environments", "import_runs", "guides", "secrets", "agents"}
+               "users", "deployments", "environments", "import_runs", "guides", "secrets", "agents",
+               "errors", "maint", "orch_runs"}
 ID_RE = re.compile(r"^[A-Za-z0-9_\-.:@+~]{1,120}$")
 KST = certlib.KST
 

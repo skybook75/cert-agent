@@ -65,7 +65,7 @@ try {
   ok("비밀번호 정책(8자·영문+숫자) 검사", (await A.textContent("#a-err")).length > 0 || await A.$eval("#a-pw", (e) => !e.checkValidity()), "짧은 비밀번호 거부");
   await A.fill("#a-pw", "Admin1234"); await A.fill("#a-pw2", "Admin1234"); await A.click("#auth-form button[type=submit]"); await settle(A);
   await login(A, "admin", "Admin1234");
-  ok("관리자 로그인 → 탭 11개", (await tabNames(A)).length === 11, (await tabNames(A)).join(","));
+  ok("관리자 로그인 → 탭 12개(AI 운영 포함)", (await tabNames(A)).length === 12, (await tabNames(A)).join(","));
 
   // ───────── 2. 사용자·SMTP
   await tab(A, "관리");
@@ -79,7 +79,7 @@ try {
   await A.check("#s-en"); await A.fill("#s-host", "127.0.0.1"); await A.fill("#s-port", String(SMTP)); await A.selectOption("#s-sec", "none");
   await A.fill("#s-from", "cert-platform@example.co.kr"); await A.click("#smtp-form button[type=submit]"); await toastText(A);
   await A.fill("#s-to", "admin@example.co.kr"); await A.click("#s-test"); const tt = await toastText(A);
-  ok("SMTP 설정·테스트 발송", tt.includes("보냈습니다"), tt);
+  ok("SMTP 설정·테스트 발송", tt.includes("메일 완료"), tt);
   await shot(A, "02_admin_users");
 
   // ───────── 3. 관리대장 등록 (SC-001)

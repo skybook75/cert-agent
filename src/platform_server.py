@@ -35,6 +35,7 @@ BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 import agents  # noqa: E402
 import vault as vault_mod  # noqa: E402
+import ops_agents  # noqa: E402
 
 STORE: agents.Store = None
 VAULT: vault_mod.Vault = None
@@ -55,6 +56,7 @@ PERMS = {
     "noti.read": ["관리자", "담당자"], "mail.send": ["관리자"], "users.manage": ["관리자"], "settings.manage": ["관리자"],
     "audit.view": ["관리자", "검토자", "승인자", "조회자"], "guide.manage": ["관리자"],
     "secret.manage": ["관리자", "담당자"],
+    "ops.manage": ["관리자"],
 }
 OWNER_SCOPED = {"cert.renewal", "deploy.request", "noti.read"}
 CERT_META = {"fingerprint", "subject_cn", "subject_dn", "issuer_cn", "issuer_dn", "not_before", "not_after", "serial_number",
@@ -201,6 +203,14 @@ class Handler(BaseHTTPRequestHandler):
     # ───────── 라우팅
     def _route(self, method):
         path = urlparse(self.path).path
+        t0 = time.time()
+        try:
+            return self._route_inner(method, path)
+        finally:
+            if path.startswith("/api/"):
+                ops_agents.record_perf(f"{method} {path}", (time.time() - t0) * 1000)
+
+    def _route_inner(self, method, path):
         try:
             if method == "GET" and path in STATIC:
                 f = BASE / STATIC[path]
@@ -252,6 +262,16 @@ class Handler(BaseHTTPRequestHandler):
                     raise Http(400, "서버 실행 시 --scan 폴더를 지정하세요")
                 with LOCK:   # PFX 비밀번호는 요청으로 받지 않고 보관함에서 복호화해 사용
                     return self._json(agents.collect(STORE, SCAN_ROOT, (), [SCAN_ROOT], label(s["user"]), vault=VAULT))
+            if path.startswith("/api/ops/"):
+                return self._ops(method, path)
+            if method == "POST" and path == "/api/maint/client-error":
+                s = self._require(method)
+                b = self._body()
+                now = time.time()
+                if now - getattr(self.server, "_last_cerr", 0) > 0.5:       # 과도한 보고 제한
+                    self.server._last_cerr = now
+                    ops_agents.record_error(STORE, "client", str(b.get("where", ""))[:200], str(b.get("message", ""))[:500], str(b.get("stack", ""))[:3000])
+                return self._json({"ok": True})
             if path == "/api/secrets" or path.startswith("/api/secrets/"):
                 return self._secrets(method, path)
             if path == "/api/agents" or path.startswith("/api/agents/"):
@@ -313,9 +333,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": str(e)}, 400)
         except PermissionError as e:
             return self._json({"error": str(e)}, 403)
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             import traceback
             traceback.print_exc()
+            try:
+                ops_agents.record_error(STORE, "server", f"{method} {path}", f"{type(e).__name__}: {e}", traceback.format_exc())
+            except Exception:  # noqa: BLE001
+                pass
             return self._json({"error": "서버 처리 중 오류가 발생했습니다"}, 500)
 
     # ───────── 계정
@@ -617,6 +641,50 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True})
         raise Http(404, "not found")
 
+    def _ops(self, method, path):
+        """AI 운영: 오케스트레이터 · 유지보수 Agent (관리자)."""
+        s = self._require(method, "ops.manage")
+        who = label(s["user"])
+        parts = path.strip("/").split("/")
+        if method == "GET" and path == "/api/ops/state":
+            maint = STORE.list("maint")
+            return self._json({
+                "agents": ops_agents.AGENT_DEFS, "tools": {k: {"agent": v[0], "label": v[1]} for k, v in ops_agents.TOOLS.items()},
+                "runs": sorted(STORE.list("orch_runs"), key=lambda r: r.get("started_at", ""), reverse=True)[:15],
+                "findings": sorted([f for f in maint if f.get("type") == "finding"], key=lambda f: (f.get("status") != "열림", -ops_agents.SEV.get(f.get("severity"), 0), f.get("title", ""))),
+                "reports": sorted([r for r in maint if r.get("type") == "report"], key=lambda r: r.get("at", ""), reverse=True)[:20],
+                "chat": (STORE.get("maint", "chat_log") or {}).get("messages", [])[-30:],
+                "perf": ops_agents.perf_summary()[:8], "errors": len([e for e in STORE.list("errors") if not e.get("resolved")]),
+                "llm": bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CERT_LLM_MOCK"))})
+        b = self._body() if method == "POST" else {}
+        if method == "POST" and path == "/api/ops/orchestrate":
+            goal = str(b.get("goal", "")).strip()[:300] or "일일 운영 점검"
+            with LOCK:
+                return self._json(ops_agents.orchestrate(STORE, goal, who))
+        if method == "POST" and path == "/api/ops/diagnose":
+            with LOCK:
+                fs = ops_agents.diagnose(STORE)
+            self._audit(s["user"], "자가 진단", f"열린 항목 {sum(1 for f in fs if f.get('status') == '열림')}건")
+            return self._json({"findings": fs})
+        if method == "POST" and path == "/api/ops/chat":
+            msg = str(b.get("message", "")).strip()[:2000]
+            if not msg:
+                raise ValueError("메시지를 입력하세요")
+            return self._json(ops_agents.chat(STORE, msg, who))     # LLM 호출이 길 수 있어 전역 잠금 없이(문서 저장은 Store 잠금)
+        if method == "POST" and len(parts) == 4 and parts[2] in ("fix", "dismiss", "rollback"):
+            if not agents.ID_RE.match(parts[3]):
+                raise Http(400, "ID 오류")
+            if True:
+                if parts[2] == "fix":
+                    r = ops_agents.apply_fix(STORE, parts[3], who)
+                    self._audit(s["user"], "진단 항목 반영", f"{parts[3]}: {r['result'][:200]}")
+                    return self._json(r)
+                if parts[2] == "dismiss":
+                    STORE.update("maint", parts[3], {"status": "무시", "dismissed_by": who, "dismissed_at": agents.now_iso()})
+                    return self._json({"ok": True})
+                return self._json(ops_agents.rollback(STORE, parts[3], who))
+        raise Http(404, "not found")
+
     @staticmethod
     def _scope_text(sec):
         return {"all": "전체 PFX", "folder": f"폴더 {sec.get('scope_value')}/", "file": f"파일 {sec.get('scope_value')}"}.get(sec.get("scope"), "-")
@@ -629,7 +697,7 @@ class Handler(BaseHTTPRequestHandler):
             return [public_user(u) for u in STORE.list("users")]
         if coll == "settings":
             raise Http(403, "설정은 전용 API 로 조회합니다")
-        if coll in ("secrets", "agents"):
+        if coll in ("secrets", "agents", "errors", "maint", "orch_runs"):
             raise Http(403, "전용 API 로 조회합니다")
         data = STORE.list(coll)
         if role != "담당자":
@@ -850,6 +918,18 @@ def main(argv=None):
     VAULT = vault_mod.Vault(a.vault_key)
     SCAN_ROOT = str(Path(a.scan).resolve()) if a.scan else None
     DEPLOY_ROOT = Path(a.deploy).resolve()
+    sess_file = Path(a.db).with_suffix(".sessions")       # 유지보수 Agent 반영 후 재시작 시 로그인 세션 유지(600 권한, 즉시 삭제)
+    if sess_file.exists():
+        try:
+            SESSIONS.update(json.loads(sess_file.read_text(encoding="utf-8")))
+        finally:
+            sess_file.unlink(missing_ok=True)
+
+    def _save_sessions():
+        fd = os.open(sess_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(SESSIONS))
+    ops_agents.BEFORE_RESTART.append(_save_sessions)
     url = f"http://localhost:{a.port}"
     print(f"인증서 관리 플랫폼: {url}\n  DB: {a.db}\n  스캔 폴더: {SCAN_ROOT or '(미지정)'}\n  배포 폴더: {DEPLOY_ROOT}\n"
           f"  PFX 비밀번호 보관함: {vault_mod.ALG}, 키 {VAULT.source}\n"
