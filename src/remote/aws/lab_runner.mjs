@@ -23,7 +23,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await chromium.launch();
 const ctxs = [];
 async function page(name) {
-  const c = await browser.newContext({ viewport: { width: 1360, height: 820 }, locale: "ko-KR", recordVideo: { dir: path.join(OUT, "video_" + name), size: { width: 1360, height: 820 } } });
+  const c = await browser.newContext({ viewport: { width: 1360, height: 820 }, locale: "ko-KR", bypassCSP: true, recordVideo: { dir: path.join(OUT, "video_" + name), size: { width: 1360, height: 820 } } });
   ctxs.push(c);
   const p = await c.newPage();
   p.on("pageerror", (e) => console.log(`[${name}] pageerror`, e.message));
@@ -78,6 +78,8 @@ try {
     S.tokens = S.tokens || {};
     for (const [h, os_, st] of [["web01", "Linux", "prod"], ["was01", "Linux", ""], ["win01", "Windows", ""]]) {
       if (S.tokens[h]) continue;
+      await api(A, "POST", `api/agents/ag_${h}/delete`);   // 토큰을 잃은 이전 등록이 있으면 정리 후 재발급
+      await A.reload(); await settle(A); await tab(A, "admin");
       await A.fill("#ag-host", h); await A.selectOption("#ag-os", os_); await A.selectOption("#ag-stage", st);
       await A.evaluate(() => { const b = document.getElementById("ag-token"); if (b) { b.hidden = true; b.innerHTML = ""; } });
       await A.click("#ag-form button[type=submit]");
