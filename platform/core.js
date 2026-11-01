@@ -28,8 +28,12 @@
   // ───────────── 수집 승인 (discoveries → certificates)
   // 반환: 실행할 쓰기 목록(ops). 저장소 종류와 무관하게 같은 규칙.
   // 분류 순서: 이미 관리 중(지문) → 관리대장(엑셀) 등록 건과 대조(일치·불일치) → 같은 CN 의 갱신본 → 신규
-  function classifyDiscovery(disc, certs) {
+  // pending: 같은 시점에 승인 대기 중인 다른 수집 결과 — 같은 이름의 더 최신 파일이 함께 올라왔으면 이 파일은 이전 버전(백업·잔존 사본)
+  function classifyDiscovery(disc, certs, pending) {
     if (certs.some(c => c.fingerprint && c.fingerprint === disc.fingerprint)) return { kind: "기존", match: null, diffs: [] };
+    const sameNewer = (pending || []).find(p => p.id !== disc.id && p.status === "대기" && String(p.subject_cn || "").toLowerCase() === String(disc.subject_cn || "").toLowerCase()
+      && Date.parse(p.not_after) > Date.parse(disc.not_after));
+    if (sameNewer) return { kind: "이전 버전", match: null, newer: sameNewer.id, diffs: [] };
     const reg = certs.filter(c => !c.fingerprint && !c.replaced_by);
     const ds = normSerial(disc.serial_number), dcn = String(disc.subject_cn || "").toLowerCase();
     const m = reg.find(c => c.serial_number && normSerial(c.serial_number) === ds) || reg.find(c => String(c.subject_cn || "").toLowerCase() === dcn);
@@ -47,20 +51,31 @@
   }
   function normSerial(s) { return String(s || "").replace(/[^0-9a-f]/gi, "").toUpperCase().replace(/^0+(?=.)/, ""); }
   function normIssuer(s) { return String(s || "").toLowerCase().replace(/[^0-9a-z가-힣]/g, ""); }
+  // 발급기관 브랜드: 대장에는 'Let's Encrypt'로, 인증서에는 중간 CA 이름(R11·E6 등)으로 적히는 경우가 많아 브랜드로 맞춘다
+  const ISSUER_BRANDS = [
+    ["letsencrypt", /^(r1[0-4]|r[3-9]|e[1-9]|e1[0-4]|ye[1-3]|yr[1-3]|isrg)$|let'?s ?encrypt|isrg/i],
+    ["digicert", /digicert|geotrust|thawte|rapidssl|symantec|verisign|encryption everywhere/i],
+    ["sectigo", /sectigo|comodo|usertrust|aaa certificate/i],
+    ["globalsign", /globalsign|alphassl/i],
+    ["kica", /yessign|signkorea|crosscert|kica|tradesign|한국정보인증|한국전자인증|금융결제원/i],
+  ];
+  const brandOf = (s) => (ISSUER_BRANDS.find(([, re]) => re.test(String(s || "").trim())) || [null])[0];
   // 관리대장 값 vs 수집 값 (변경 전·후)
   function compareRegistry(reg, disc) {
     const diffs = [];
     const ri = normIssuer(reg.issuer_cn), di = normIssuer(disc.issuer_cn);
-    if (ri && !(di.includes(ri) || ri.includes(di))) diffs.push({ field: "issuer_cn", label: "발급기관", before: reg.issuer_cn, after: disc.issuer_cn });
+    const rb = brandOf(reg.issuer_cn), db = brandOf(disc.issuer_cn);
+    const sameIssuer = rb && db ? rb === db : !ri || di.includes(ri) || ri.includes(di);
+    if (!sameIssuer) diffs.push({ field: "issuer_cn", label: "발급기관", before: reg.issuer_cn, after: disc.issuer_cn });
     if (reg.not_after && kstDate(reg.not_after) !== kstDate(disc.not_after)) diffs.push({ field: "not_after", label: "만료일", before: kstDate(reg.not_after), after: kstDate(disc.not_after) });
     if (reg.serial_number && normSerial(reg.serial_number) !== normSerial(disc.serial_number)) diffs.push({ field: "serial_number", label: "일련번호", before: reg.serial_number, after: disc.serial_number });
     if (reg.subject_cn && reg.subject_cn !== disc.subject_cn) diffs.push({ field: "subject_cn", label: "인증서명", before: reg.subject_cn, after: disc.subject_cn });
     return diffs;
   }
 
-  function approveOps(disc, certs, actor, nowIso, extra) {
+  function approveOps(disc, certs, actor, nowIso, extra, pending) {
     const ops = [];
-    const cls = classifyDiscovery(disc, certs);
+    const cls = classifyDiscovery(disc, certs, pending);
     const id = "c_" + disc.fingerprint.replace(/:/g, "").slice(0, 16).toLowerCase();
     const base = {
       id, fingerprint: disc.fingerprint, subject_cn: disc.subject_cn, subject_dn: disc.subject_dn,
@@ -399,8 +414,9 @@
   // 대조 현황: 승인 대기 수집 결과 + 관리대장 등록 건
   function reconcile(certs, discoveries) {
     const rows = [], matched = new Set();
-    for (const d of discoveries.filter(x => x.status === "대기")) {
-      const cls = classifyDiscovery(d, certs);
+    const pend = discoveries.filter(x => x.status === "대기");
+    for (const d of pend) {
+      const cls = classifyDiscovery(d, certs, pend);
       if (cls.match) matched.add(cls.match);
       rows.push({ status: cls.kind, disc: d, cert: certs.find(c => c.id === cls.match) || null, diffs: cls.diffs });
     }
@@ -460,13 +476,16 @@
     return [{ op: "update", coll: "deployments", id: dep.id, data: { status: pass ? "검토 통과" : "검토 반려",
       review: { checks, pass, comment: comment || "", reviewed_by: actor, reviewed_at: nowIso } } }];
   }
-  function approveDeployOps(dep, envs, actor, nowIso) {
+  // 직전 배포본: 이 단계에 플랫폼으로 배포한 기록이 있으면 그것, 처음이면 갱신 전 인증서(그동안 서버에서 쓰던 것)를 직전본으로 본다
+  function approveDeployOps(dep, envs, actor, nowIso, certs) {
     const id = envId(dep.stage, dep.subject_cn), env = envs.find(e => e.id === id);
+    const cert = (certs || []).find(c => c.id === dep.cert_id);
+    const prev = env ? env.cert_id : (cert && cert.replaces) || null;
     const history = [...((env && env.history) || []), { cert_id: dep.cert_id, action: "배포", by: actor, at: nowIso }].slice(-20);
     return [
       { op: "set", coll: "environments", id, data: { stage: dep.stage, stage_name: dep.stage_name, subject_cn: dep.subject_cn, cert_id: dep.cert_id,
-        prev_cert_id: env ? env.cert_id : null, history, updated_at: nowIso } },
-      { op: "update", coll: "deployments", id: dep.id, data: { status: "배포 완료", approved_by: actor, approved_at: nowIso, prev_cert_id: env ? env.cert_id : null } },
+        prev_cert_id: prev, history, updated_at: nowIso } },
+      { op: "update", coll: "deployments", id: dep.id, data: { status: "배포 완료", approved_by: actor, approved_at: nowIso, prev_cert_id: prev } },
     ];
   }
   function rollbackOps(dep, envs, actor, nowIso, reason) {
@@ -561,6 +580,7 @@
       "- accuracy(0~100): 답변의 각 주장·절차·명령어·수치가 근거와 일치하는가. 근거에 없는 내용을 지어냈거나 근거와 다르면 크게 감점. 근거가 없을 때 '없다'고 정직하게 답했으면 높은 점수.",
       "- quality(0~100): 질문에 직접 답했는가, 필요한 단계가 빠지지 않았는가, 순서가 맞는가, 간결한가, 문장마다 근거 번호를 붙였는가.",
       "- verdict: accuracy와 quality가 모두 80 이상이면 '적합', 하나라도 60 미만이면 '부적합', 그 외 '주의'.",
+      "- 근거 번호 규칙: 가이드 근거는 [G03-2]·[U01-1] 형식, [등록 인증서 정보]에서 온 내용(만료일·남은 일수·담당자·저장 위치 등)은 [인증서]로 표시하는 것이 정상입니다. [인증서] 표기 자체를 문제 삼지 마세요.",
       "- unsupported: 근거로 뒷받침되지 않는 주장(원문 일부를 짧게 인용). 없으면 빈 배열.",
       "- missing: 근거에 있는데 질문에 필요한데 빠진 내용. 없으면 빈 배열.",
       "- comment: 사용자에게 보여줄 피드백 2문장 이내(한국어, 존댓말).",
@@ -606,7 +626,7 @@
   }
   const scopeText = (s) => ({ all: "전체 PFX", folder: `폴더 ${s.scope_value}/`, file: `파일 ${s.scope_value}` }[s.scope] || "-");
 
-  const api = { vaultMatches, vaultCandidates, normRel, scopeText, withRenewalContext, statusOf, kstDate, classifyDiscovery, approveOps, notifyOps, qaGuard, tokens, buildIndex, search,
+  const api = { vaultMatches, vaultCandidates, normRel, scopeText, withRenewalContext, statusOf, kstDate, classifyDiscovery, brandOf, approveOps, notifyOps, qaGuard, tokens, buildIndex, search,
     findCerts, certFacts, buildPrompt, checkAnswer, extractiveAnswer, LEVEL_RANK,
     ROLES, PERMS, OWNER_SCOPED, can, isOwner, visibleCerts, IMPORT_COLUMNS, RENEWAL_STATES, validateImport, importOps, excelDate, normSerial, hashId, reconcile,
     STAGES, envId, depId, deployState, canRequestStage, deployChecks, requestDeployOps, reviewDeployOps, approveDeployOps, rollbackOps,

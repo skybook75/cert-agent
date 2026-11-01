@@ -518,7 +518,7 @@ async function runCollect() {
   $("agent-out").textContent = "수집 중…";
   try {
     const r = await api("POST", "api/agent/collect", {});
-    S.agentMsg = `파일 ${r.files}개 스캔 → 승인 대기 ${r.new_pending}건, 이미 관리 중 ${r.known}건, 실패 ${r.failed}건` + (r.vault_used ? ` · 보관함 비밀번호로 연 PFX ${r.vault_used}개` : "") +
+    S.agentMsg = `파일 ${r.files}개 스캔 → 승인 대기 ${r.new_pending}건(갱신본 ${r.renewal_candidates || 0}), 이미 관리 중 ${r.known}건, 실패 ${r.failed}건` + (r.skipped_rejected ? ` · 이전에 반려한 인증서 ${r.skipped_rejected}건 제외` : "") + (r.vault_used ? ` · 보관함 비밀번호로 연 PFX ${r.vault_used}개` : "") +
       (r.errors.length ? ` · 실패: ${r.errors.map((e) => `${e.file}(${e.reason})`).join(", ")}` : "");
     S.agentMsg = esc(S.agentMsg);
     await load();
@@ -744,6 +744,7 @@ async function webCollect() {
   W.busy = true; const started = nowIso();
   const certs = S.raw.certificates, byFp = new Map(certs.filter((c) => c.fingerprint).map((c) => [c.fingerprint, c]));
   const discs = new Map(S.raw.discoveries.filter((d) => d.status === "대기").map((d) => [d.fingerprint, d]));
+  const rejected = new Set(S.raw.discoveries.filter((d) => d.status === "반려").map((d) => d.fingerprint));
   const res = { files: 0, new_pending: 0, known: 0, failed: 0, renewal_candidates: 0, errors: [], vault_used: 0, vault_errors: 0 };
   W.progress = { pct: 0, label: "수집 중…", ev: [] }; S.agentMsg = ""; renderDash();
   for (const f of W.files) {
@@ -760,6 +761,7 @@ async function webCollect() {
           const d = discs.get(fp); if (!d.locations.includes(f.rel)) { d.locations = [...d.locations, f.rel]; await S.db.collection("discoveries").doc(d.id).update({ locations: d.locations }); }
           res.known++; W.progress.ev.push({ file: f.rel, ok: true, kind: "기존", text: `승인 대기 중 · 위치 추가 · ${r.subject_cn}` }); continue;
         }
+        if (rejected.has(fp)) { res.skipped_rejected = (res.skipped_rejected || 0) + 1; W.progress.ev.push({ file: f.rel, ok: true, kind: "기존", text: `이전에 반려한 인증서 · 제외 · ${r.subject_cn}` }); continue; }
         const rec = { ...r, not_before: isoUtc(r.not_before), not_after: isoUtc(r.not_after) };
         const prev = certs.filter((x) => x.fingerprint && !x.replaced_by && x.subject_cn === rec.subject_cn && Date.parse(x.not_after) < Date.parse(rec.not_after)).sort((a, b) => Date.parse(b.not_after) - Date.parse(a.not_after));
         const newer = certs.some((x) => x.fingerprint && !x.replaced_by && String(x.subject_cn).toLowerCase() === String(rec.subject_cn).toLowerCase() && Date.parse(x.not_after) >= Date.parse(rec.not_after));
@@ -779,7 +781,7 @@ async function webCollect() {
   await S.db.collection("scan_runs").doc(runId).set({ started_at: started, folder: W.root, ...res, by: actor(), engine: "웹 수집 Agent" });
   await S.db.collection("audit").doc("a_" + runId).set({ at: started, actor: actor(), action: "수집 실행", detail: `파일 ${res.files}개, 승인 대기 ${res.new_pending}건, 실패 ${res.failed}건 (웹)` });
   W.busy = false; W.progress.label = "완료 · " + W.progress.label;
-  S.agentMsg = `파일 ${res.files}개 스캔 → 승인 대기 ${res.new_pending}건(갱신본 ${res.renewal_candidates}), 이미 관리 중 ${res.known}건, 실패 ${res.failed}건` + (res.vault_used ? ` · 보관함 비밀번호로 연 PFX ${res.vault_used}개` : "") +
+  S.agentMsg = `파일 ${res.files}개 스캔 → 승인 대기 ${res.new_pending}건(갱신본 ${res.renewal_candidates}), 이미 관리 중 ${res.known}건, 실패 ${res.failed}건` + (res.skipped_rejected ? ` · 이전에 반려한 인증서 ${res.skipped_rejected}건 제외` : "") + (res.vault_used ? ` · 보관함 비밀번호로 연 PFX ${res.vault_used}개` : "") +
     (res.new_pending ? ` · <button class="btn sm" data-go-disc>수집 승인으로 이동</button>` : "");
   toast(`수집 완료: 승인 대기 ${res.new_pending}건`);
   await load();
@@ -803,7 +805,7 @@ async function runNotify(silent) {
 function renderLedger() {
   if (!$("p-ledger") || !TABS.find(([k]) => k === "ledger")[2].includes(role())) { $("p-ledger").innerHTML = ""; return; }
   const rc = C.reconcile(S.data.certificates, S.data.discoveries), pv = S.importPreview;
-  const order = ["불일치", "미수집", "신규", "갱신본", "일치", "확인 완료"];
+  const order = ["불일치", "미수집", "신규", "갱신본", "이전 버전", "일치", "확인 완료"];
   const rows = [...rc.rows].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
   const runs = [...S.data.import_runs].sort((a, b) => String(b.at).localeCompare(a.at)).slice(0, 5);
   $("p-ledger").innerHTML = `
@@ -877,7 +879,8 @@ async function saveFile(filename, data) {
 
 // ───────── 수집 승인
 function renderDisc() {
-  const pend = S.data.discoveries.filter((d) => d.status === "대기").map((d) => ({ d, cls: C.classifyDiscovery(d, S.data.certificates) }))
+  const pendRaw = S.data.discoveries.filter((d) => d.status === "대기");
+  const pend = pendRaw.map((d) => ({ d, cls: C.classifyDiscovery(d, S.data.certificates, pendRaw) }))
     .sort((a, b) => String(a.d.not_after).localeCompare(b.d.not_after));
   const done = S.data.discoveries.filter((d) => d.status !== "대기").sort((a, b) => String(b.decided_at).localeCompare(a.decided_at)).slice(0, 15);
   const owners = [...new Set(S.data.certificates.map((c) => c.owner).filter(Boolean))];
@@ -888,7 +891,7 @@ function renderDisc() {
       ${tbl(["구분", "인증서", "발급기관", "유효기간", "상태", "저장 위치", "검토", "담당자 / 업무", ""], pend.map(({ d, cls }) => {
         const s = C.statusOf(d.not_before, d.not_after); const ref = cls.match && certById(cls.match);
         const old = cls.kind === "이전 버전";
-        return `<tr><td>${pill(cls.kind, "k")}${cls.kind === "갱신본" && ref ? `<span class="sub">기존 만료 ${C.kstDate(ref.not_after)}</span>` : ""}${old && ref ? `<span class="sub">관리 중인 최신본 만료 ${C.kstDate(ref.not_after)} · 반려 권장</span>` : ""}${cls.diffs.map((x) => `<span class="sub">${esc(x.label)} ${esc(x.before)} → ${esc(x.after)}</span>`).join("")}</td>
+        return `<tr><td>${pill(cls.kind, "k")}${cls.kind === "갱신본" && ref ? `<span class="sub">기존 만료 ${C.kstDate(ref.not_after)}</span>` : ""}${old ? `<span class="sub">${ref ? `관리 중인 최신본 만료 ${C.kstDate(ref.not_after)}` : `같은 이름의 더 최신 파일이 함께 수집됨`} · 반려 권장</span>` : ""}${cls.diffs.map((x) => `<span class="sub">${esc(x.label)} ${esc(x.before)} → ${esc(x.after)}</span>`).join("")}</td>
         <td>${esc(d.subject_cn)}<span class="sub mono">${esc(d.serial_number)}</span></td><td>${esc(d.issuer_cn)}</td>
         <td class="mono">${C.kstDate(d.not_before)}<br>~ ${C.kstDate(d.not_after)}</td><td>${pill(s.status)}</td>
         <td>${(d.locations || []).map(esc).join("<br>")}</td>
@@ -918,7 +921,7 @@ async function decide(id, ok) {
     } else {
       const owner = document.querySelector(`[data-owner="${id}"]`)?.value.trim() || "";
       const system = document.querySelector(`[data-sys="${id}"]`)?.value.trim() || "";
-      const { kind, ops } = C.approveOps(d, S.data.certificates, actor(), nowIso(), { owner, system });
+      const { kind, ops } = C.approveOps(d, S.data.certificates, actor(), nowIso(), { owner, system }, S.data.discoveries.filter((x) => x.status === "대기"));
       await act("discovery.decide", ops, `승인: ${d.subject_cn} · ${kind}${owner ? ` · 담당 ${owner}` : ""}`);
       toast({ 갱신본: "승인했습니다. 기존 인증서를 갱신 완료로 바꿨습니다", 기존: "이미 등록된 인증서입니다", 일치: "승인했습니다. 관리대장 건에 수집 정보를 연결했습니다",
         불일치: "승인했습니다. 수집된 값으로 관리대장 정보를 갱신했습니다" }[kind] || "승인했습니다. 인증서 목록에 추가됐습니다");
@@ -1110,7 +1113,7 @@ function renderDeploy() {
   P.querySelectorAll("[data-rvfail]").forEach((b) => (b.onclick = () => review(b.dataset.rvfail, false)));
   P.querySelectorAll("[data-approve-dep]").forEach((b) => (b.onclick = async () => {
     const d = deps.find((x) => x.id === b.dataset.approveDep);
-    try { const r = await act("deploy.approve", C.approveDeployOps(d, S.data.environments, actor(), nowIso()), `${d.subject_cn} → ${d.stage_name} 반영`);
+    try { const r = await act("deploy.approve", C.approveDeployOps(d, S.data.environments, actor(), nowIso(), S.data.certificates), `${d.subject_cn} → ${d.stage_name} 반영`);
       toast(`${d.stage_name} 환경에 반영했습니다${r.deployed?.file ? ` (${r.deployed.file})` : ""}`); await load(); } catch (e) { toast(`승인 실패: ${e.message}`); }
   }));
   P.querySelectorAll("[data-rollback]").forEach((b) => (b.onclick = async () => {
