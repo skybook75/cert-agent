@@ -31,6 +31,19 @@ Resources:
         - { IpProtocol: tcp, FromPort: 8000, ToPort: 8000, CidrIp: !Ref MyIp, Description: platform web }
         - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: !Ref MyIp, Description: test https sites }
       Tags: [{ Key: Project, Value: cert-lab }]
+  WebSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: cert-lab platform public web (HTTPS via Caddy + Let's Encrypt; login required)
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: ACME http-01 + redirect }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: platform https }
+      Tags: [{ Key: Project, Value: cert-lab }]
+  PlatformEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref Platform
+      Tags: [{ Key: Project, Value: cert-lab }]
   LabSGSelf:
     Type: AWS::EC2::SecurityGroupIngress
     Properties: { GroupId: !GetAtt LabSG.GroupId, IpProtocol: "-1", SourceSecurityGroupId: !GetAtt LabSG.GroupId, Description: lab internal }
@@ -64,7 +77,7 @@ Resources:
       ImageId: !Ref LinuxAmi
       InstanceType: t3.small
       IamInstanceProfile: !Ref LabProfile
-      SecurityGroupIds: [!GetAtt LabSG.GroupId]
+      SecurityGroupIds: [!GetAtt LabSG.GroupId, !GetAtt WebSG.GroupId]
       MetadataOptions: { HttpTokens: required }
       Tags: [{ Key: Name, Value: cert-lab-platform }, { Key: Project, Value: cert-lab }, { Key: Role, Value: platform }]
       UserData:
@@ -120,7 +133,9 @@ Resources:
 
 Outputs:
   PlatformUrl:
-    Value: !Sub http://${Platform.PublicIp}:8000/
+    Value: !Sub
+      - https://cert-platform.${Dashed}.sslip.io/
+      - Dashed: !Join ["-", !Split [".", !Ref PlatformEIP]]
   PlatformPrivateUrl:
     Description: URL the agents use inside the lab
     Value: !Sub http://${Platform.PrivateIp}:8000/
