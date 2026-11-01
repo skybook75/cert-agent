@@ -1299,11 +1299,11 @@ function renderAdmin() {
   };
   $("ag-form").onsubmit = async (e) => {
     e.preventDefault();
-    const host = $("ag-host").value.trim().toLowerCase();
-    try { const r = await api("POST", "api/agents", { host, name: host, os: $("ag-os").value, deploy_stage: $("ag-stage").value });
+    const host = $("ag-host").value.trim().toLowerCase(), os = $("ag-os").value;
+    try { const r = await api("POST", "api/agents", { host, name: host, os, deploy_stage: $("ag-stage").value });
       S.agents = await api("GET", "api/agents"); renderAdmin();
       const box = $("ag-token"); box.hidden = false;
-      const conf = JSON.stringify({ platform: location.origin + location.pathname.replace(/[^/]*$/, ""), token: r.token, scan: $("ag-os").value === "Windows" ? ["C:\\certs"] : ["/etc/nginx/ssl", "/etc/letsencrypt/live"], service: {} }, null, 1);
+      const conf = JSON.stringify({ platform: location.origin + location.pathname.replace(/[^/]*$/, ""), token: r.token, scan: os === "Windows" ? ["C:\\certs"] : ["/etc/nginx/ssl", "/etc/letsencrypt/live"], ...(os === "Windows" ? { winstore: ["LocalMachine\\My"] } : {}), service: {} }, null, 1);
       box.innerHTML = `<div class="card" style="padding:12px;border-color:var(--acc)"><b>${esc(host)} 토큰 발급 완료 — 지금 한 번만 표시됩니다</b><pre class="email">${esc(conf)}</pre><p class="note">이 내용을 서버의 <span class="mono">/etc/cert-agent/agent.json</span> (Windows: <span class="mono">C:\\ProgramData\\cert-agent\\agent.json</span>) 에 저장하고 <span class="mono">python3 cert_agent.py run</span> 을 cron·작업 스케줄러에 등록하세요.</p></div>`;
     } catch (err) { toast(`등록 실패: ${err.message}`); }
   };

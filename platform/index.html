@@ -259,7 +259,7 @@ function scope(raw) {
 async function load() {
   if (S.mode === "server") {
     await Promise.all(COLLS.map(async (k) => { try { S.data[k] = await api("GET", `api/db/${k}`); } catch { S.data[k] = []; } }));
-    if (role() === "관리자") { try { S.users = await api("GET", "api/db/users"); S.smtp = await api("GET", "api/settings/smtp"); } catch {} }
+    if (role() === "관리자") { try { S.users = await api("GET", "api/db/users"); S.smtp = await api("GET", "api/settings/smtp"); S.agents = await api("GET", "api/agents"); } catch {} }
   } else {
     S.raw = {};
     await Promise.all(COLLS.map(async (k) => { try { const snap = await S.db.collection(k).get(); S.raw[k] = snap.docs.map((d) => ({ ...d.data(), id: d.id })); } catch { S.raw[k] = []; } }));
@@ -1091,10 +1091,11 @@ function renderDeploy() {
       </div>
     </div>
     <div class="card"><h2>환경별 현재 배포본</h2>
-      ${tbl(["단계", "인증서명", "현재 배포본", "직전 배포본", "최근 처리", ""], envs.map((e) => { const cur = certById(e.cert_id), prev = certById(e.prev_cert_id), last = (e.history || []).slice(-1)[0];
+      ${tbl(["단계", "인증서명", "현재 배포본", "직전 배포본", "서버 적용", "최근 처리", ""], envs.map((e) => { const cur = certById(e.cert_id), prev = certById(e.prev_cert_id), last = (e.history || []).slice(-1)[0];
         const dep = S.data.deployments.find((d) => d.id === C.depId(e.cert_id, e.stage));
         const okRb = can("deploy.rollback") && e.prev_cert_id && dep && dep.status === "배포 완료";
         return `<tr><td class="nw">${esc(e.stage_name)}</td><td>${esc(e.subject_cn)}</td><td class="mono">${cur ? `만료 ${C.kstDate(cur.not_after)}` : e.cert_id ? esc(e.cert_id) : "없음"}</td><td class="mono">${prev ? `만료 ${C.kstDate(prev.not_after)}` : "-"}</td>
+          <td>${Object.entries(e.applied || {}).map(([h, a]) => `<div title="${esc(a.detail || "")}">${a.ok && a.cert_id === e.cert_id ? `<span class="pill ok">${esc(h)} 적용</span>` : a.failed_cert_id === e.cert_id ? `<span class="pill bad">${esc(h)} 실패·원복</span>` : `<span class="pill warn">${esc(h)} 대기</span>`}<span class="sub">${dt(a.at)}</span></div>`).join("") || `<span class="note">-</span>`}</td>
           <td class="note">${last ? `${esc(last.action)} · ${esc(last.by)} · ${dt(last.at)}` : ""}</td>
           <td>${okRb ? `<div class="row"><input class="f" data-rbreason="${esc(dep.id)}" placeholder="원복 사유" style="width:130px" aria-label="원복 사유"><button class="btn danger sm" data-rollback="${esc(dep.id)}">직전 배포본으로 원복</button></div>` : ""}</td></tr>`; }), "아직 배포된 환경이 없습니다.", 820)}
     </div>
@@ -1262,6 +1263,20 @@ function renderAdmin() {
       </form>
       <p class="note">담당자 역할은 인증서의 담당자 이름 또는 이메일이 계정과 같은 인증서만 조회·처리합니다. 새 사용자는 첫 로그인 때 비밀번호를 바꿔야 합니다.</p>
     </div>
+    <div class="card" id="ag-card"><h2>서버 Agent ${(S.agents || []).length}대</h2>
+      <p class="note">인증서가 있는 서버(Linux·Windows)에 <span class="mono">cert_agent.py</span> 를 설치하면 정해진 시각에 인증서를 찾아 이 플랫폼에 올리고(개인키·PFX 파일은 보내지 않음), 배포 단계를 지정한 서버는 승인된 배포를 직접 설치·검사·재적용하고 실제 응답까지 확인합니다. 실패하면 백업으로 자동 원복하고 결과를 보고합니다.</p>
+      ${tbl(["호스트", "OS", "배포 단계", "마지막 접속(UTC)", "최근 결과", ""], (S.agents || []).map((a) => `<tr><td class="mono">${esc(a.host)}</td><td>${esc(a.os || "-")}</td><td>${esc((C.STAGES.find((x) => x.code === a.deploy_stage) || {}).name || "수집만")}</td>
+        <td class="mono">${a.last_seen ? dt(a.last_seen) : `<span class="pill warn">미접속</span>`}</td><td class="note">${esc(a.last_result || "-")}</td><td><button class="btn sm danger" data-agdel="${esc(a.id)}">삭제</button></td></tr>`), "등록된 서버 Agent가 없습니다.", 720)}
+      <h3>서버 등록</h3>
+      <form class="row" id="ag-form">
+        <input class="f" id="ag-host" placeholder="호스트 (예: web01)" required pattern="[a-z0-9][a-z0-9-]{0,40}" style="width:150px" aria-label="호스트">
+        <select class="f" id="ag-os" aria-label="OS"><option>Linux</option><option>Windows</option></select>
+        <select class="f" id="ag-stage" aria-label="배포 단계"><option value="">수집만</option>${C.STAGES.map((x) => `<option value="${x.code}">${x.name} 서버(배포 적용)</option>`).join("")}</select>
+        <button class="btn primary" type="submit">등록하고 토큰 발급</button>
+      </form>
+      <div id="ag-token" hidden></div>
+      <p class="note">토큰은 발급 때 한 번만 보여 주고 플랫폼에는 해시만 저장합니다. PFX 비밀번호는 보관함에서 각 서버 Agent의 공개키로 암호화해 전달하므로, 범위를 <span class="mono">호스트/경로</span> (예: <span class="mono">was01/opt/tomcat/conf/ssl</span>) 로 등록하세요.</p>
+    </div>
     <div class="card"><h2>이메일(SMTP) 설정</h2>
       <form id="smtp-form" class="row">
         <label class="note"><input type="checkbox" id="s-en" ${sm.enabled ? "checked" : ""}> 사용</label>
@@ -1289,6 +1304,20 @@ function renderAdmin() {
     try { S.smtp = await api("PUT", "api/settings/smtp", { enabled: $("s-en").checked, host: $("s-host").value.trim(), port: +$("s-port").value, security: $("s-sec").value, username: $("s-user").value.trim(), from_addr: $("s-from").value.trim() });
       S.health.smtp = S.smtp.enabled; toast("SMTP 설정을 저장했습니다"); renderAll(); } catch (err) { toast(`저장 실패: ${err.message}`); }
   };
+  $("ag-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const host = $("ag-host").value.trim().toLowerCase(), os = $("ag-os").value;
+    try { const r = await api("POST", "api/agents", { host, name: host, os, deploy_stage: $("ag-stage").value });
+      S.agents = await api("GET", "api/agents"); renderAdmin();
+      const box = $("ag-token"); box.hidden = false;
+      const conf = JSON.stringify({ platform: location.origin + location.pathname.replace(/[^/]*$/, ""), token: r.token, scan: os === "Windows" ? ["C:\\certs"] : ["/etc/nginx/ssl", "/etc/letsencrypt/live"], ...(os === "Windows" ? { winstore: ["LocalMachine\\My"] } : {}), service: {} }, null, 1);
+      box.innerHTML = `<div class="card" style="padding:12px;border-color:var(--acc)"><b>${esc(host)} 토큰 발급 완료 — 지금 한 번만 표시됩니다</b><pre class="email">${esc(conf)}</pre><p class="note">이 내용을 서버의 <span class="mono">/etc/cert-agent/agent.json</span> (Windows: <span class="mono">C:\\ProgramData\\cert-agent\\agent.json</span>) 에 저장하고 <span class="mono">python3 cert_agent.py run</span> 을 cron·작업 스케줄러에 등록하세요.</p></div>`;
+    } catch (err) { toast(`등록 실패: ${err.message}`); }
+  };
+  P.querySelectorAll("[data-agdel]").forEach((b) => (b.onclick = async () => {
+    if (!confirm(`${b.dataset.agdel} 서버 Agent를 삭제할까요? 토큰이 즉시 무효가 됩니다.`)) return;
+    try { await api("POST", `api/agents/${encodeURIComponent(b.dataset.agdel)}/delete`); S.agents = await api("GET", "api/agents"); renderAdmin(); toast("삭제했습니다"); } catch (err) { toast(err.message); }
+  }));
   $("s-test").onclick = async () => { try { await api("POST", "api/mail/test", { to: $("s-to").value.trim() }); toast("테스트 메일을 보냈습니다"); } catch (err) { toast(err.message); } };
 }
 async function patchUser(id, body) { try { await api("PATCH", `api/users/${encodeURIComponent(id)}`, body); toast("변경했습니다"); await load(); } catch (e) { toast(`변경 실패: ${e.message}`); await load(); } }

@@ -109,7 +109,7 @@ try {
   await A.fill("#ag-host", "win01"); await A.selectOption("#ag-os", "Windows"); await A.click("#ag-form button[type=submit]"); await A.waitForSelector("#ag-token:not([hidden])");
   const adm = await A.textContent("#ag-card");
   ok("관리 탭: 서버 Agent 목록(최근 결과)·화면에서 등록 시 토큰과 설정 파일 1회 표시", /서버 Agent 3대/.test(adm) && adm.includes("배포 운영 shop.demo.test 실패·자동 원복") && /"token": "[A-Za-z0-9_-]{30,}"/.test(adm), adm.match(/서버 Agent \d대/)?.[0]);
-  await A.screenshot({ path: path.join(ROOT, "results", "acceptance", "shots", "R01_admin_agents.png"), fullPage: false });
+  await A.locator("#ag-card").screenshot({ path: path.join(ROOT, "results", "acceptance", "shots", "R01_admin_agents.png") });
   const aud = (await api(A, "GET", "api/db/audit")).body.filter((a) => /서버/.test(a.action) || /PFX 비밀번호 전달/.test(a.action)).map((a) => a.action);
   ok("감사 로그: 서버 Agent 등록·비밀번호 암호화 전달·서버 적용·적용 실패", ["서버 Agent 등록", "PFX 비밀번호 전달(암호화)", "서버 적용", "서버 적용 실패"].every((k) => aud.includes(k)), [...new Set(aud)].join(", "));
 } catch (e) { console.error(e); ok("실행 오류 없음", false, e.message); }

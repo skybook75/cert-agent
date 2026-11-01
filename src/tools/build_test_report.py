@@ -15,6 +15,7 @@ R = json.loads((ACC / "report.json").read_text(encoding="utf-8"))
 QA = json.loads((ACC / "qa_live_claude.json").read_text(encoding="utf-8"))
 SCE = json.loads((BASE / "results" / "self_correction_eval.json").read_text(encoding="utf-8"))["summary"]
 e = html.escape
+RA = json.loads((BASE / "results" / "e2e_remote_agent.json").read_text(encoding="utf-8"))
 
 FINDINGS = [  # (시나리오, 증상, 원인, 조치, 확인)
     ("S03", "대장의 'Let's Encrypt'와 인증서의 발급자 'R11'이 달라 정상 인증서가 '불일치'로 분류", "인증서에는 중간 CA 이름(R10~R14·E5~E9)이 적히는데 문자열로만 비교",
@@ -28,6 +29,9 @@ FINDINGS = [  # (시나리오, 증상, 원인, 조치, 확인)
      "첫 배포 때는 갱신 전 인증서를 직전 배포본으로 기록 → 운영 원복 시 그 파일로 되돌림", "운영 원복 → 갱신 전 파일 복원, 갱신본은 history 보관"),
     ("S03", "대장 대조 칩에 '이전 버전' 건수가 없음", "표시 순서 목록에서 빠짐", "칩 추가", "확인"),
     ("S13", "답변 검증 AI가 등록 정보 표기 [인증서]를 '근거 번호 형식이 다르다'고 지적(오탐)", "검증 프롬프트에 [인증서] 표기 규칙이 없었음", "검증 프롬프트에 근거 번호 규칙 명시", "재질문 시 오탐 사라짐(적합 93/84)"),
+    ("R01", "원격 서버에서 수집한 인증서는 배포 승인 시 '배포할 인증서 파일을 찾을 수 없습니다'로 실패", "배포 폴더 기록이 플랫폼 PC의 스캔 폴더 원본만 찾음",
+     "수집 때 보관한 공개 인증서(PEM)로 배포 기록을 남기고, 실제 설치는 해당 서버 Agent가 수행", "4단계 승인 → web01 적용 성공"),
+    ("R01", "배포 대상 파일에 갱신본 자신의 파일(incoming/)까지 포함", "같은 이름 인증서의 모든 위치를 대상으로 잡음", "그 서버에 지금 적용된 인증서의 파일만 교체 대상으로", "대상 2개 → 1개"),
     ("S06", "폐기한 서버(old-gw)의 인증서도 대장에 남아 있으면 D-30 알림 발생", "설계상 정상(대장 기준 알림)", "운영 안내: 미수집 상태로 남은 대장 건은 정리 대상 — 대조 화면 '미수집'으로 확인", "운영 가이드 반영"),
 ]
 
@@ -45,6 +49,8 @@ def main():
         shots = "".join(f"<figure><a href='shots/{e(sh['file'])}' target='_blank'><img loading='lazy' src='shots/{e(sh['file'])}' alt='{e(sh['caption'])}'></a><figcaption>{e(sh['caption'])}</figcaption></figure>" for sh in s["shots"])
         sc_html.append(f"""<section class="sc" id="{s['id']}"><h3><span class="id">{s['id']}</span> {e(s['title'])} <span class="badge {'ok' if ok == n else 'bad'}">{ok}/{n}</span></h3>
 <p class="goal">{e(s['goal'])}</p><div class="tbl"><table><thead><tr><th>조작</th><th>기대 결과</th><th>실제 결과</th><th>판정</th></tr></thead><tbody>{rows}</tbody></table></div><div class="shots">{shots}</div></section>""")
+    ra_ok = f"{sum(x['pass'] for x in RA)}/{len(RA)}"
+    ra_rows = "".join(f"<tr><td>{e(x['name'])}</td><td class='mono'>{e(x['detail'][:220])}</td><td class='{'ok' if x['pass'] else 'bad'}'>{'통과' if x['pass'] else '실패'}</td></tr>" for x in RA)
     f_rows = "".join(f"<tr><td>{e(a)}</td><td>{e(b)}</td><td>{e(c)}</td><td>{e(d)}</td><td>{e(x)}</td></tr>" for a, b, c, d, x in FINDINGS)
     qa_rows = "".join(f"<tr><td>{e(c['q'])}</td><td>{e(c['result'])}</td><td>{e(c.get('verify_after_fix') or c.get('verify', ''))}{(' <br><span class=note>수정 전: ' + e(c['verify_before_fix']) + '</span>') if c.get('verify_before_fix') else ''}</td></tr>" for c in QA["cases"])
     files = "".join(f"<tr><td class='mono'>{e(x['path'])}</td><td>{e(x.get('kind', ''))}</td><td>{e(', '.join(x.get('cn', [])) if isinstance(x.get('cn'), list) else '')}</td><td class='num'>{x.get('days', '')}</td></tr>" for x in R["data"]["files"])
@@ -74,10 +80,13 @@ nav.toc a{{display:inline-block;margin:0 10px 6px 0;color:var(--acc)}}.callout{{
 담당자가 손으로 관리해 온 엑셀 관리대장(제목 행·점 날짜·담당자 누락·날짜 오타·이메일 오타·중복 행·폐기 서버 포함 10행)을 사용했습니다. 사용자는 관리자 1·담당자 4·검토자·승인자·조회자 8명입니다.</p>
 <div class="tbl"><table><thead><tr><th>서버 경로</th><th>종류</th><th>인증서(CN)</th><th>남은 일수</th></tr></thead><tbody>{files}</tbody></table></div></div>
 <h2>배포 범위 (명확히)</h2>
-<div class="card callout"><p><b>현재:</b> 배포 승인 시 플랫폼(서버)이 인증서 파일을 단계별 배포 폴더 <span class="mono">deploy/&lt;개발·테스트·교육·운영&gt;/&lt;인증서명&gt;/</span>에 놓고 DEPLOYED.json(지문·만료일)을 기록하며, 이전 파일은 history/에 보관하고 원복 시 되돌립니다.
-웹서버(nginx·IIS 등)에 직접 설치하고 재시작하는 단계는 <b>각 서버 담당자</b>가 수행합니다 — Agent가 서버 설정을 바꾸지는 않습니다.</p>
-<p><b>다음 단계(AWS 테스트):</b> 각 서버의 배포 Agent가 승인된 배포 폴더를 가져가 설치 → 설정 검사(nginx -t 등) → 재적용 → 실패 시 자동 원복하도록 확장합니다.</p></div>
-<h2>시나리오별 결과</h2><nav class="toc">{''.join(f"<a href='#{s['id']}'>{s['id']} {e(s['title'])}</a>" for s in R['scenarios'])}<a href="#qa">S13 QA(실제 Claude)</a><a href="#findings">발견사항</a></nav>
+<div class="card callout"><p><b>플랫폼:</b> 배포 승인 시 단계별 배포 폴더 <span class="mono">deploy/&lt;개발·테스트·교육·운영&gt;/&lt;인증서명&gt;/</span>에 인증서와 DEPLOYED.json(지문·만료일)을 기록하고, 이전 파일은 history/에 보관해 원복 시 되돌립니다.</p>
+<p><b>서버 Agent(추가):</b> 배포 단계를 지정해 등록한 서버는 Agent가 승인된 배포를 <b>직접 설치</b>합니다 — 백업 → 서버 인증서 교체(중간 CA 유지) → 설정 검사(nginx -t 등) → 재적용 → 서버가 실제로 보내는 인증서 지문 확인 → 실패하면 백업으로 자동 원복 후 결과 보고. 개인키는 서버 밖으로 나가지 않고, 새 키를 발급하는 갱신은 담당자가 설치합니다.</p></div>
+<h2 id="R01">서버 Agent 원격 수집·배포 <span class="badge ok">{ra_ok}</span></h2>
+<section class="sc"><p class="goal">원격 서버 2대(web01 nginx 체인+개인키, was01 Tomcat PFX)를 흉내 낸 환경에서 서버 Agent가 토큰으로 접속해 수집·업로드하고, PFX 비밀번호는 보관함에서 Agent 공개키로 암호화 전달받아 엽니다. 승인된 운영 배포를 실제 TLS 서버에 설치하고 응답 지문을 확인하며, 키가 맞지 않는 인증서는 설정 검사에서 막혀 자동 원복됩니다. AWS EC2 실서버 테스트 전 단계 검증입니다.</p>
+<div class="tbl"><table><thead><tr><th>검증 항목</th><th>실제 결과</th><th>판정</th></tr></thead><tbody>{ra_rows}</tbody></table></div>
+<div class="shots"><figure><a href="shots/R01_admin_agents.png" target="_blank"><img loading="lazy" src="shots/R01_admin_agents.png" alt=""></a><figcaption>관리 탭 — 서버 Agent 목록(최근 결과)과 등록 시 1회 표시되는 토큰·설정 파일</figcaption></figure></div></section>
+<h2>시나리오별 결과</h2><nav class="toc">{''.join(f"<a href='#{s['id']}'>{s['id']} {e(s['title'])}</a>" for s in R['scenarios'])}<a href="#qa">S13 QA(실제 Claude)</a><a href="#R01">R01 서버 Agent</a><a href="#findings">발견사항</a></nav>
 {''.join(sc_html)}
 <section class="sc" id="qa"><h3><span class="id">S13</span> QA 챗봇 — 실제 Claude 답변과 답변 검증 AI</h3><p class="goal">{e(QA['where'])}</p>
 <div class="tbl"><table><thead><tr><th>질문</th><th>답변 요약</th><th>답변 검증 AI</th></tr></thead><tbody>{qa_rows}</tbody></table></div>
@@ -85,7 +94,7 @@ nav.toc a{{display:inline-block;margin:0 10px 6px 0;color:var(--acc)}}.callout{{
 <div class="shots"><figure><img src="shots/S13_qa_claude_verify.jpg" alt=""><figcaption>Claude 답변 + 답변 검증 AI(적합) + Agent 추론 로그</figcaption></figure><figure><img src="shots/S13_qa_claude_caution_guard.jpg" alt=""><figcaption>근거 없는 질문 → 검증 AI '주의'(추측성 안내 지적), 비밀번호·개인키 요구 → 가드레일 차단</figcaption></figure></div></section>
 <h2 id="findings">테스트 중 발견사항과 조치</h2>
 <div class="card"><div class="tbl"><table><thead><tr><th>시나리오</th><th>증상</th><th>원인</th><th>조치</th><th>재검증</th></tr></thead><tbody>{f_rows}</tbody></table></div>
-<p class="note">모든 조치 후 회귀 테스트: 서버판 E2E 59/59 · 웹판 12/12 · QA·PDF 13/13 · 규칙 일치 4/4 · 인수 시나리오 {R['pass']}/{R['total']}</p></div>
+<p class="note">모든 조치 후 회귀 테스트: 서버판 E2E 59/59 · 웹판 12/12 · QA·PDF 13/13 · 규칙 일치 4/4 · 인수 시나리오 {R['pass']}/{R['total']} · 서버 Agent {ra_ok}</p></div>
 </main></body></html>"""
     (OUT / "index.html").write_text(page, encoding="utf-8")
     print("report:", OUT / "index.html")

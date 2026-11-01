@@ -81,7 +81,7 @@
       id, fingerprint: disc.fingerprint, subject_cn: disc.subject_cn, subject_dn: disc.subject_dn,
       issuer_cn: disc.issuer_cn, issuer_dn: disc.issuer_dn, not_before: disc.not_before, not_after: disc.not_after,
       serial_number: disc.serial_number, public_key: disc.public_key, signature_algorithm: disc.signature_algorithm,
-      cert_type: disc.cert_type, san: disc.san, locations: disc.locations || [],
+      cert_type: disc.cert_type, san: disc.san, locations: disc.locations || [], pem: disc.pem || null,
       owner: (extra && extra.owner) || "", owner_email: (extra && extra.owner_email) || "", system: (extra && extra.system) || "",
       renewal_status: "미조치", approved_by: actor, approved_at: nowIso, replaces: null, replaced_by: null, source: "수집",
     };
@@ -94,7 +94,7 @@
       const reg = certs.find(c => c.id === cls.match);
       const meta = {};
       for (const k of ["fingerprint", "subject_cn", "subject_dn", "issuer_cn", "issuer_dn", "not_before", "not_after", "serial_number",
-        "public_key", "signature_algorithm", "cert_type", "san"]) meta[k] = base[k];
+        "public_key", "signature_algorithm", "cert_type", "san", "pem"]) meta[k] = base[k];
       Object.assign(meta, { locations: base.locations, verified_at: nowIso, verified_by: actor, approved_by: actor, approved_at: nowIso,
         source: "관리대장+수집", registry_diffs: cls.diffs });
       if (extra && extra.owner) meta.owner = extra.owner;
