@@ -136,7 +136,7 @@ def to_record(cert) -> dict:
     return {
         "subject_cn": _cn(cert.subject), "subject_dn": cert.subject.rfc4514_string(),
         "issuer_cn": _cn(cert.issuer), "issuer_dn": cert.issuer.rfc4514_string(),
-        "not_before": cert.not_valid_before_utc.isoformat(), "not_after": cert.not_valid_after_utc.isoformat(),
+        "not_before": _utc(cert, "not_valid_before").isoformat(), "not_after": _utc(cert, "not_valid_after").isoformat(),
         "serial_number": format(cert.serial_number, "X"), "version": cert.version.name,
         "public_key": _key(cert), "signature_algorithm": getattr(cert.signature_algorithm_oid, "_name", ""),
         "cert_type": "CA 인증서" if bc and bc.ca else "서버 인증서",
@@ -146,6 +146,12 @@ def to_record(cert) -> dict:
 
 
 # ─────────────────────────────── 상태 판정 (KST, 만료 시각 기준)
+def _utc(cert, name):
+    """cryptography 42+ 는 *_utc 속성, 이전 버전(Amazon Linux 2023 기본 패키지 등)은 naive UTC."""
+    v = getattr(cert, name + "_utc", None)
+    return v if v is not None else getattr(cert, name).replace(tzinfo=timezone.utc)
+
+
 def status_of(not_before: str, not_after: str, now: datetime | None = None) -> tuple[str, int]:
     now = now or datetime.now(timezone.utc)
     nb, na = datetime.fromisoformat(not_before), datetime.fromisoformat(not_after)
