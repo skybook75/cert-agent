@@ -112,7 +112,23 @@ OnUnitActiveSec=30min
 [Install]
 WantedBy=timers.target
 U
-systemctl daemon-reload; systemctl enable --now cert-agent.timer
+cat > /etc/systemd/system/cert-agent-poll.service <<'U'
+[Unit]
+Description=Cert agent poll (run-now requests, approved deploys)
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/cert-agent/cert_agent.py poll
+U
+cat > /etc/systemd/system/cert-agent-poll.timer <<'U'
+[Unit]
+Description=Cert agent poll every minute
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+[Install]
+WantedBy=timers.target
+U
+systemctl daemon-reload; systemctl enable --now cert-agent.timer cert-agent-poll.timer
 python3 /opt/cert-agent/cert_agent.py run
 EOF
 chmod 755 /usr/local/bin/agent-setup

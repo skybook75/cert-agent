@@ -21,11 +21,11 @@ const seed = { certificates: {
     window.claude = { use: async (n) => caps[n] ?? null };
   }, seed);
   await p.goto("http://localhost:8790/"); await p.waitForTimeout(800);
-  ok("웹 시연 모드 시작(관리자 11개 탭)", (await p.$$("#tabs button")).length === 11, await p.textContent("#conn-text"));
+  ok("웹 시연 모드 시작(관리자 13개 탭)", (await p.$$("#tabs button")).length === 13, await p.textContent("#conn-text"));
   await p.selectOption("#d-role", "담당자"); await p.fill("#d-name", "박결제"); await p.press("#d-name", "Tab"); await p.waitForTimeout(300);
   await p.click("#tabs button[data-tab=certs]");
   const rows = await p.$$eval("#p-certs tbody tr[data-cert]", (t) => t.map((r) => r.children[0].firstChild.textContent));
-  ok("역할 전환 → 담당자 8개 탭·본인 인증서만", (await p.$$("#tabs button")).length === 8 && rows.join() === "pay.example.co.kr", rows.join());
+  ok("역할 전환 → 담당자 9개 탭·본인 인증서만", (await p.$$("#tabs button")).length === 9 && rows.join() === "pay.example.co.kr", rows.join());
   await p.click("#p-certs tbody tr[data-cert]"); await p.fill("#d-depnote", "dev"); await p.click("#d-deploy"); await p.waitForTimeout(300);
   const dep = await p.evaluate(() => Object.values(window.__store.deployments || {})[0]);
   ok("담당자 배포 요청 기록", dep?.status === "요청" && dep.requested_by === "박결제(담당자)", dep?.stage_name);

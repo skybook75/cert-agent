@@ -117,8 +117,20 @@ def certs_in(path: Path, passwords):
     return [x509.load_der_x509_certificate(data)], None
 
 
-def collect(c):
-    roots = [Path(x) for x in c.get("scan", [])]
+def collect(c, only_paths=None, target_ids=None):
+    """only_paths: '수집 실행' 요청으로 받은 경로만. 없으면 로컬 설정 + 플랫폼에 등록된 이 서버의 경로 전체."""
+    if only_paths is None:
+        try:
+            cfg = call(c, "GET", "/api/agent-api/config")
+            plat, target_ids = cfg.get("scan", []), cfg.get("targets", [])
+        except Exception:  # noqa: BLE001
+            plat = []
+        paths = list(dict.fromkeys(list(c.get("scan", [])) + plat))
+        if plat:
+            log(f"플랫폼 등록 경로 {len(plat)}개 반영")
+    else:
+        paths = only_paths
+    roots = [Path(x) for x in paths]
     files = [p for r in roots if r.exists() for p in sorted(r.rglob("*")) if p.is_file() and not p.is_symlink() and (p.suffix.lower() in EXTS or p.name.lower() == "signcert.der")]
     log(f"Plan: 스캔 {len(roots)}개 경로 → 대상 {len(files)}개 파일 → PFX 비밀번호 요청 → 파싱 → 업로드")
     pfx = [norm(p) for p in files if p.suffix.lower() in (".pfx", ".p12")]
@@ -158,7 +170,7 @@ def collect(c):
         rows = [ln.split(" ", 1) for ln in p.stdout.splitlines() if " " in ln]
         log(f"Windows 인증서 저장소 {store}: {len(rows)}개")
         out += [{"path": f"Cert:/{store.replace(chr(92), '/')}/{tp}", "ders": [b64]} for tp, b64 in rows]
-    r = call(c, "POST", "/api/agent-api/ingest", {"files": out})
+    r = call(c, "POST", "/api/agent-api/ingest", {"files": out, "target_ids": target_ids or []})
     log(f"업로드: 파일 {r['files']}개 → 승인 대기 {r['new_pending']}건(갱신본 {r['renewal_candidates']}) · 이미 관리 중 {r['known']} · 실패 {r['failed']}")
     return r
 
@@ -237,9 +249,20 @@ def deploy(c):
     return done
 
 
+def poll(c):
+    """1분마다: 플랫폼의 '수집 실행' 요청과 승인된 배포만 확인(가벼움)."""
+    tasks = call(c, "GET", "/api/agent-api/collect-tasks").get("tasks", [])
+    for t in tasks:
+        log(f"수집 실행 요청: {t['name']} ({len(t['paths'])}개 경로)")
+        collect(c, t["paths"], [t["target_id"]])
+    deploy(c)
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "run"
     c = conf()
+    if cmd == "poll":
+        return poll(c)
     hello(c)
     if cmd in ("collect", "run"):
         collect(c)

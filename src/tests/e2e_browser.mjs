@@ -65,7 +65,7 @@ try {
   ok("비밀번호 정책(8자·영문+숫자) 검사", (await A.textContent("#a-err")).length > 0 || await A.$eval("#a-pw", (e) => !e.checkValidity()), "짧은 비밀번호 거부");
   await A.fill("#a-pw", "Admin1234"); await A.fill("#a-pw2", "Admin1234"); await A.click("#auth-form button[type=submit]"); await settle(A);
   await login(A, "admin", "Admin1234");
-  ok("관리자 로그인 → 탭 12개(AI 운영 포함)", (await tabNames(A)).length === 12, (await tabNames(A)).join(","));
+  ok("관리자 로그인 → 탭 13개(수집 대상·AI 운영 포함)", (await tabNames(A)).length === 13, (await tabNames(A)).join(","));
 
   // ───────── 2. 사용자·SMTP
   await tab(A, "관리");
@@ -184,7 +184,7 @@ try {
   // ───────── 8. 담당자 조회 범위 (SC-003)
   const PO = await ctx("owner");
   await login(PO, "pay", "Temp1234", "Owner1234");
-  ok("담당자 탭 8개(관리대장·수집 승인·관리 없음, PFX 비밀번호 있음)", (await tabNames(PO)).length === 8 && (await tabNames(PO)).includes("vault"), (await tabNames(PO)).join(","));
+  ok("담당자 탭 9개(관리대장·수집 승인·관리 없음, 수집 대상·PFX 비밀번호 있음)", (await tabNames(PO)).length === 9 && (await tabNames(PO)).includes("vault"), (await tabNames(PO)).join(","));
   const poAll = await apiIn(PO, "POST", "api/secrets", { scope: "all", scope_value: "", label: "x", password: "Pw#1" });
   const poAdd = await apiIn(PO, "POST", "api/secrets", { scope: "folder", scope_value: "결제", label: "결제 폴더", password: "Pay#2026" });
   const poBad = await apiIn(PO, "POST", "api/secrets", { scope: "folder", scope_value: "../etc", label: "x", password: "Pw#1" });

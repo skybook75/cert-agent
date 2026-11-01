@@ -28,7 +28,7 @@ import certlib  # noqa: E402  (v2 파싱·상태 판정 재사용)
 
 COLLECTIONS = {"certificates", "discoveries", "renewals", "notifications", "scan_runs", "audit", "settings",
                "users", "deployments", "environments", "import_runs", "guides", "secrets", "agents",
-               "errors", "maint", "orch_runs"}
+               "errors", "maint", "orch_runs", "targets"}
 ID_RE = re.compile(r"^[A-Za-z0-9_\-.:@+~]{1,120}$")
 KST = certlib.KST
 
@@ -396,20 +396,34 @@ def mail_notifications(store: Store, ids=None, actor="알림 Agent") -> dict:
 
 
 # ───────────────────────────── QA Agent LLM 호출 (Claude)
-def ask_claude(prompt: str, model: str | None = None, timeout=60) -> str:
+LLM_STATE = {"model": None, "last_error": None}
+MODEL_CANDIDATES = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-sonnet-4-5", "claude-3-5-sonnet-latest"]
+
+
+def ask_claude(prompt: str, model: str | None = None, timeout=120, max_tokens=900) -> str:
+    """Claude Messages API. 모델이 계정에서 안 되면(400/404) 다음 후보로 자동 전환하고 성공한 모델을 기억한다."""
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise RuntimeError("no_key")
-    body = json.dumps({"model": model or os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5"), "max_tokens": 900,
-                       "temperature": 0, "messages": [{"role": "user", "content": prompt}]}).encode()
-    req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=body, method="POST", headers={
-        "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            data = json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        raise RuntimeError(f"Claude API 오류 {e.code}") from None
-    return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+    cands = [m for m in [model, os.environ.get("CLAUDE_MODEL"), LLM_STATE["model"], *MODEL_CANDIDATES] if m]
+    last = None
+    for m in dict.fromkeys(cands):
+        body = json.dumps({"model": m, "max_tokens": max_tokens, "temperature": 0, "messages": [{"role": "user", "content": prompt}]}).encode()
+        req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=body, method="POST", headers={
+            "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                data = json.loads(r.read())
+            LLM_STATE.update(model=m, last_error=None)
+            return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+        except urllib.error.HTTPError as e:
+            detail = e.read()[:300].decode("utf-8", "ignore")
+            last = f"Claude API 오류 {e.code} ({m}): {detail}"
+            LLM_STATE["last_error"] = last
+            if e.code in (400, 404) and ("model" in detail.lower() or "not_found" in detail.lower()):
+                continue                                   # 모델 미지원 → 다음 후보
+            raise RuntimeError(last) from None
+    raise RuntimeError(last or "Claude API 호출 실패")
 
 
 if __name__ == "__main__":

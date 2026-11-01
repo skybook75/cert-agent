@@ -7,6 +7,7 @@ cd $SRC
 git stash -q 2>/dev/null || true          # 유지보수 Agent 가 현장에서 바꾼 파일은 stash 에 보관
 git pull -q --ff-only
 command -v node >/dev/null || dnf install -y -q nodejs >/dev/null
+python3 -c "import paramiko" 2>/dev/null || { dnf install -y -q python3-pip >/dev/null; pip3 install -q paramiko >/dev/null 2>&1 || true; }
 T=$(curl -s -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
 REGION=$(curl -s -H "X-aws-ec2-metadata-token: $T" http://169.254.169.254/latest/meta-data/placement/region)
 K=$(aws ssm get-parameter --region "$REGION" --name /cert-lab/anthropic-api-key --with-decryption --query Parameter.Value --output text 2>/dev/null || true)

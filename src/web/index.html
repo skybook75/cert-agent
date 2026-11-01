@@ -172,6 +172,7 @@ details.agentlog ol { margin: 6px 0 0; padding-left: 20px; font-family: var(--fo
     <section role="tabpanel" id="p-ledger" hidden></section>
     <section role="tabpanel" id="p-disc" hidden></section>
     <section role="tabpanel" id="p-certs" hidden></section>
+    <section role="tabpanel" id="p-targets" hidden></section>
     <section role="tabpanel" id="p-vault" hidden></section>
     <section role="tabpanel" id="p-deploy" hidden></section>
     <section role="tabpanel" id="p-noti" hidden></section>
@@ -397,7 +398,7 @@ function showAuth(kind, msg) {
 // ───────── 탭 (역할별)
 const TABS = [
   ["dash", "대시보드", null], ["ledger", "관리대장", ["관리자", "검토자", "승인자", "조회자"]], ["disc", "수집 승인", ["관리자", "검토자", "승인자", "조회자"]],
-  ["certs", "인증서", null], ["vault", "PFX 비밀번호", ["관리자", "담당자"]], ["deploy", "배포", null], ["noti", "알림함", null], ["report", "보고서", null], ["qa", "QA 챗봇", null], ["ops", "AI 운영", ["관리자"]], ["hist", "이력", null], ["admin", "관리", ["관리자"]],
+  ["certs", "인증서", null], ["targets", "수집 대상", ["관리자", "담당자"]], ["vault", "PFX 비밀번호", ["관리자", "담당자"]], ["deploy", "배포", null], ["noti", "알림함", null], ["report", "보고서", null], ["qa", "QA 챗봇", null], ["ops", "AI 운영", ["관리자"]], ["hist", "이력", null], ["admin", "관리", ["관리자"]],
 ];
 function buildTabs() {
   const vis = TABS.filter(([, , r]) => !r || r.includes(role()));
@@ -411,6 +412,7 @@ function select(tab) {
   document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
   document.querySelectorAll("section[role=tabpanel]").forEach((p) => (p.hidden = p.id !== "p-" + tab));
   if (tab === "ops") loadOps();
+  if (tab === "targets") loadTargets();
   if (tab === "qa") $("qa-engine").textContent = `발급기관별 갱신 가이드 ${S.guides.length}종과 등록 인증서 정보를 근거로 답합니다. 답변 엔진: ${S.llm ? "Claude" : "검색형(근거 문단 제시)"}`;
 }
 async function startApp() {
@@ -1252,6 +1254,76 @@ function renderHist() {
   $("au-act").onchange = (e) => { af.action = e.target.value; renderHist(); };
 }
 
+// ───────── 수집 대상 서버 (관리자 전체 · 담당자 본인 등록분)
+async function loadTargets() {
+  if (S.mode !== "server") return renderTargets();
+  try { S.targets = await api("GET", "api/targets"); } catch (e) { S.targets = { error: e.message }; }
+  renderTargets();
+}
+function renderTargets() {
+  const P = $("p-targets"); if (!P) return;
+  if (S.mode !== "server") { P.innerHTML = `<div class="card"><h2>수집 대상 서버</h2><p class="note">인증서가 있는 서버·접속정보·경로를 등록해 수집 Agent가 쓰게 하는 기능입니다. 서버판(AWS 운영 플랫폼)에서 동작합니다.</p></div>`; return; }
+  const T = S.targets, admin = role() === "관리자", ed = S.tEdit && Array.isArray(T) ? T.find((x) => x.id === S.tEdit) : null;
+  if (!T) { P.innerHTML = `<div class="card"><p class="note">불러오는 중…</p></div>`; return; }
+  if (T.error) { P.innerHTML = `<div class="card"><p class="note">불러오기 실패: ${esc(T.error)}</p></div>`; return; }
+  const v = ed || { method: "agent", os: "Linux", paths: [] };
+  P.innerHTML = `
+    <div class="card"><h2>${ed ? `수집 대상 수정 — ${esc(ed.name)}` : "수집 대상 등록"}</h2>
+      <p class="note">인증서 파일이 있는 서버와 경로를 등록하면 수집 Agent가 이 목록을 그대로 씁니다. <b>서버 Agent</b> 방식은 그 서버의 Agent가 경로를 받아 스캔하고(접속 비밀번호 불필요), <b>SSH 접속</b> 방식은 에이전트 설치 없이 플랫폼이 접속해 인증서 파일만 읽어 옵니다. 접속 비밀번호는 AES-256-GCM으로 암호화해 보관하고 누구도 다시 볼 수 없습니다(교체만 가능). ${admin ? "관리자는 전체 목록을 봅니다." : "본인이 등록한 대상만 보이고 관리할 수 있습니다."}</p>
+      <form id="tg-form" autocomplete="off">
+        <div class="row" style="margin-bottom:8px">
+          <input class="f" id="tg-name" placeholder="이름 예: 결제 WAS" value="${esc(v.name || "")}" maxlength="60" style="width:170px" aria-label="이름" required>
+          <input class="f mono" id="tg-host" placeholder="호스트 예: web01 / 10.0.1.20" value="${esc(v.host || "")}" style="width:190px" aria-label="호스트" required>
+          <select class="f" id="tg-os" aria-label="OS"><option ${v.os !== "Windows" ? "selected" : ""}>Linux</option><option ${v.os === "Windows" ? "selected" : ""}>Windows</option></select>
+          <select class="f" id="tg-method" aria-label="수집 방식"><option value="agent" ${v.method === "agent" ? "selected" : ""}>서버 Agent</option><option value="ssh" ${v.method === "ssh" ? "selected" : ""}>SSH 접속(에이전트 없음)</option></select>
+        </div>
+        <div class="row" style="margin-bottom:8px" id="tg-conn">
+          <input class="f" id="tg-port" type="number" placeholder="포트" value="${esc(v.port || 22)}" style="width:80px" aria-label="포트">
+          <input class="f" id="tg-user" placeholder="접속 계정" value="${esc(v.username || "")}" style="width:140px" aria-label="접속 계정" autocomplete="off">
+          <input class="f" id="tg-pw" type="password" placeholder="${ed?.has_secret ? "비밀번호(바꿀 때만 입력)" : "접속 비밀번호"}" style="width:200px" aria-label="접속 비밀번호" autocomplete="new-password">
+          <span class="note">${ed?.has_secret ? "🔒 암호화 저장됨" : ""}</span>
+        </div>
+        <textarea class="f mono" id="tg-paths" rows="3" placeholder="수집 경로 (한 줄에 하나)&#10;/etc/nginx/ssl&#10;/opt/tomcat/conf/ssl" style="width:100%;max-width:640px" aria-label="수집 경로">${esc((v.paths || []).join("\n"))}</textarea>
+        <div class="row" style="margin-top:8px"><input class="f grow" id="tg-memo" placeholder="메모(선택)" value="${esc(v.memo || "")}" maxlength="200" aria-label="메모">
+          <button class="btn primary" type="submit">${ed ? "저장" : "등록"}</button>${ed ? `<button class="btn" type="button" id="tg-cancel">취소</button>` : ""}</div>
+        <p class="err" id="tg-err"></p>
+      </form>
+    </div>
+    <div class="card"><h2>수집 대상 ${T.length}개 ${admin ? "(전체)" : "(내가 등록)"}</h2>
+      ${tbl(["이름", "호스트", "방식", "수집 경로", ...(admin ? ["등록자"] : []), "최근 수집", ""], T.map((t) => `<tr>
+        <td>${esc(t.name)}${t.memo ? `<span class="sub">${esc(t.memo)}</span>` : ""}</td>
+        <td class="mono">${esc(t.host)}<span class="sub">${esc(t.os)}</span></td>
+        <td>${t.method === "agent" ? `서버 Agent ${t.agent_registered ? `<span class="pill ${t.agent_last_seen ? "ok" : "warn"}">${t.agent_last_seen ? "연결됨" : "미접속"}</span>` : `<span class="pill bad">Agent 미등록</span>`}` : `SSH ${esc(t.username)}@:${esc(t.port)} ${t.has_secret ? "🔒" : ""}`}</td>
+        <td class="mono note">${(t.paths || []).map(esc).join("<br>")}</td>
+        ${admin ? `<td class="nw">${esc(t.created_by)}</td>` : ""}
+        <td class="note">${t.last_run_at ? `${dt(t.last_run_at)}<br>` : ""}${t.last_result ? `<span class="${t.last_ok === false ? "check-bad" : ""}">${esc(t.last_result)}</span>` : "-"}</td>
+        <td class="nw"><button class="btn primary sm" data-trun="${esc(t.id)}">수집 실행</button><button class="btn sm" data-tedit="${esc(t.id)}">수정</button><button class="btn sm ${S.tDel === t.id ? "danger" : ""}" data-tdel="${esc(t.id)}">${S.tDel === t.id ? "삭제 확인" : "삭제"}</button></td></tr>`), "등록된 수집 대상이 없습니다.", 900)}
+      <p class="note">수집 결과는 '수집 승인' 탭에 '호스트:경로' 위치로 올라오고, 승인해야 인증서로 등록됩니다. PFX 파일은 'PFX 비밀번호' 탭에 <span class="mono">호스트/경로</span> 범위로 등록한 비밀번호로 엽니다.</p>
+    </div>`;
+  const conn = () => { $("tg-conn").style.display = $("tg-method").value === "ssh" ? "" : "none"; };
+  $("tg-method").onchange = conn; conn();
+  if ($("tg-cancel")) $("tg-cancel").onclick = () => { S.tEdit = null; renderTargets(); };
+  $("tg-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const body = { name: $("tg-name").value, host: $("tg-host").value, os: $("tg-os").value, method: $("tg-method").value, port: +$("tg-port").value || undefined,
+      username: $("tg-user").value, paths: $("tg-paths").value.split("\n"), memo: $("tg-memo").value };
+    const pw = $("tg-pw").value; if (pw) body.password = pw;
+    try { await api("POST", ed ? `api/targets/${ed.id}/update` : "api/targets", body); $("tg-pw").value = ""; S.tEdit = null; toast(ed ? "수정했습니다" : "등록했습니다"); await loadTargets(); }
+    catch (err) { $("tg-err").textContent = err.message; }
+  };
+  P.querySelectorAll("[data-tedit]").forEach((b) => (b.onclick = () => { S.tEdit = b.dataset.tedit; renderTargets(); window.scrollTo(0, 0); }));
+  P.querySelectorAll("[data-tdel]").forEach((b) => (b.onclick = async () => {
+    if (S.tDel !== b.dataset.tdel) { S.tDel = b.dataset.tdel; return renderTargets(); }
+    try { await api("POST", `api/targets/${b.dataset.tdel}/delete`); S.tDel = null; toast("삭제했습니다"); } catch (err) { toast(err.message); } await loadTargets();
+  }));
+  P.querySelectorAll("[data-trun]").forEach((b) => (b.onclick = async () => {
+    b.disabled = true; b.textContent = "실행 중…";
+    try { const r = await api("POST", `api/targets/${b.dataset.trun}/run`); toast(r.queued ? "수집을 요청했습니다. 서버 Agent가 1분 안에 수집합니다" : `수집 결과: ${r.result}`); }
+    catch (err) { toast(`실행 실패: ${err.message}`); }
+    await loadTargets(); await load();
+  }));
+}
+
 // ───────── AI 운영: 오케스트레이터 · 유지보수 Agent
 const OPS_GOALS = ["일일 운영 점검", "이번 주 만료 임박 인증서 점검하고 알려줘", "배포 상태 확인", "버그·오류 진단"];
 const MAINT_EX = ["진단해줘", "미발송 알림 다시 보내줘", "대시보드에 '이번 주 만료' 타일을 추가해줘", "되돌려줘"];
@@ -1297,7 +1369,8 @@ function renderOps() {
       ${o.runs.length > 1 ? `<details><summary class="note">실행 이력 ${o.runs.length}건</summary>${tbl(["시각", "목표", "단계", "결과"], o.runs.map((r) => `<tr><td class="mono nw">${dt(r.started_at)}</td><td>${esc(r.goal)}</td><td class="num">${r.steps.length}</td><td>${pill(r.status, r.status === "정상" ? "ok" : "warn")} <span class="note">${esc(r.result.slice(0, 90))}</span></td></tr>`), "", 620)}</details>` : ""}
     </div>
     <div class="cols2">
-      <div class="card"><h2>유지보수·개선 Agent <span class="note">${o.llm ? "Claude 연결 · 코드 수정 가능" : "규칙형(Claude 키 설정 시 코드 수정)"}</span></h2>
+      <div class="card"><h2>유지보수·개선 Agent <span class="note">${o.llm ? `Claude 연결${o.llm_model ? ` (${esc(o.llm_model)})` : ""} · 코드 수정 가능` : "규칙형(Claude 키 설정 시 코드 수정)"}</span></h2>
+        ${o.llm_error ? `<p class="note" style="color:var(--warn)">최근 Claude 호출 오류: ${esc(o.llm_error.slice(0, 200))} — 규칙형으로 대체 동작</p>` : ""}
         <p class="note">버그 수정·기능 개선을 말로 요청하면 원인 분석 → 수정안 → <b>임시 사본에서 자동 테스트(컴파일·문법·서버 기동·화면 응답)</b> → 통과 시에만 반영하고 리포트를 남깁니다. 실패하면 오류를 근거로 최대 2번 다시 고치고(Self-Correction), 그래도 실패하면 반영하지 않습니다.</p>
         <div class="examples" style="margin-bottom:8px">${MAINT_EX.map((g) => `<button type="button" data-mx="${esc(g)}">${esc(g)}</button>`).join("")}</div>
         <div class="chat" id="mchat" style="max-height:340px">${(o.chat || []).map((m) => `<div class="msg ${m.role === "user" ? "me" : "bot"}">${esc(m.text)}${m.report ? `<span class="meta">리포트 ${esc(m.report)} · ${esc(m.status || "")}</span>` : ""}</div>`).join("") || `<p class="note">예) “수집 승인 화면에서 담당자 입력칸을 기본으로 내 이름으로 채워줘”, “진단해줘”</p>`}</div>

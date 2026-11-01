@@ -77,16 +77,20 @@ def llm(prompt: str, max_tokens=4000) -> str | None:
             if k in prompt:
                 return v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
         return None
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
+    if not os.environ.get("ANTHROPIC_API_KEY"):
         return None
-    body = json.dumps({"model": os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5"), "max_tokens": max_tokens, "temperature": 0,
-                       "messages": [{"role": "user", "content": prompt}]}).encode()
-    req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=body, method="POST", headers={
-        "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
-    with urllib.request.urlopen(req, timeout=180) as r:
-        data = json.loads(r.read())
-    return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+    try:
+        return agents.ask_claude(prompt, timeout=180, max_tokens=max_tokens)
+    except RuntimeError as e:
+        record_error_soft("llm", str(e))
+        return None
+
+
+_SOFT = {}
+
+
+def record_error_soft(kind, msg):
+    _SOFT[kind] = {"message": msg[:400], "at": now_iso()}
 
 
 def _json_block(text: str):
@@ -359,7 +363,10 @@ def improve(store, request: str, actor: str) -> dict:
             for item in BASE.iterdir():
                 if item.name in ("maint_backups", "__pycache__") or item.suffix == ".db":
                     continue
-                (shutil.copytree if item.is_dir() else shutil.copy2)(item, work / item.name)
+                if item.is_dir():
+                    shutil.copytree(item, work / item.name, symlinks=True, ignore=shutil.ignore_patterns("node_modules", "__pycache__", "*.db"))
+                else:
+                    shutil.copy2(item, work / item.name)
             errs = _apply_edits(work, plan["edits"])
             if errs:
                 feedback = "; ".join(errs)

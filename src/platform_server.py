@@ -38,6 +38,7 @@ sys.path.insert(0, str(BASE))
 import agents  # noqa: E402
 import vault as vault_mod  # noqa: E402
 import ops_agents  # noqa: E402
+import targets as targets_mod  # noqa: E402
 
 STORE: agents.Store = None
 VAULT: vault_mod.Vault = None
@@ -59,6 +60,7 @@ PERMS = {
     "audit.view": ["관리자", "검토자", "승인자", "조회자"], "guide.manage": ["관리자"],
     "secret.manage": ["관리자", "담당자"],
     "ops.manage": ["관리자"],
+    "target.manage": ["관리자", "담당자"],
 }
 OWNER_SCOPED = {"cert.renewal", "deploy.request", "noti.read"}
 CERT_META = {"fingerprint", "subject_cn", "subject_dn", "issuer_cn", "issuer_dn", "not_before", "not_after", "serial_number",
@@ -264,6 +266,8 @@ class Handler(BaseHTTPRequestHandler):
                     raise Http(400, "서버 실행 시 --scan 폴더를 지정하세요")
                 with LOCK:   # PFX 비밀번호는 요청으로 받지 않고 보관함에서 복호화해 사용
                     return self._json(agents.collect(STORE, SCAN_ROOT, (), [SCAN_ROOT], label(s["user"]), vault=VAULT))
+            if path == "/api/targets" or path.startswith("/api/targets/"):
+                return self._targets(method, path)
             if path.startswith("/api/ops/"):
                 return self._ops(method, path)
             if method == "POST" and path == "/api/maint/client-error":
@@ -597,8 +601,19 @@ class Handler(BaseHTTPRequestHandler):
             b = self._body()
             with LOCK:
                 res = agents.ingest(STORE, host, b.get("files") or [], actor)
-            STORE.update("agents", ag["id"], {"last_seen": now_iso(), "last_result": f"수집 {res['files']}개 · 승인 대기 {res['new_pending']} · 실패 {res['failed']}"})
+                summary = f"수집 {res['files']}개 · 승인 대기 {res['new_pending']} · 실패 {res['failed']}"
+                for tid in [str(x) for x in (b.get("target_ids") or [])][:20]:          # 플랫폼에 등록한 수집 대상 실행 결과
+                    t = STORE.get("targets", tid) if agents.ID_RE.match(tid) else None
+                    if t and t.get("host") == host:
+                        STORE.update("targets", tid, {"last_run_at": now_iso(), "last_result": summary, "last_ok": res["failed"] == 0, "done_seq": int(t.get("run_seq") or 0)})
+            STORE.update("agents", ag["id"], {"last_seen": now_iso(), "last_result": summary})
             return self._json(res)
+        if method == "GET" and op == "config":            # 플랫폼에 등록된 이 서버의 수집 경로
+            return self._json({"scan": targets_mod.agent_paths(STORE, host),
+                               "targets": [t["id"] for t in STORE.list("targets") if t.get("method") == "agent" and t.get("host") == host]})
+        if method == "GET" and op == "collect-tasks":     # '수집 실행' 요청
+            STORE.update("agents", ag["id"], {"last_seen": now_iso()})
+            return self._json({"tasks": targets_mod.agent_tasks(STORE, host)})
         if method == "GET" and op == "deploy-tasks":
             stage = ag.get("deploy_stage")
             tasks = []
@@ -643,6 +658,77 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True})
         raise Http(404, "not found")
 
+    def _targets(self, method, path):
+        """수집 대상 서버 목록: 관리자 전체, 담당자는 자기가 등록한 것만."""
+        s = self._require(method, "target.manage")
+        user, admin = s["user"], s["user"]["role"] == "관리자"
+        mine = lambda t: admin or t.get("owner_id") == user["id"]   # noqa: E731
+        parts = path.strip("/").split("/")
+        if method == "GET" and len(parts) == 2:
+            agents_by_host = {a["host"]: a for a in STORE.list("agents")}
+            out = []
+            for t in STORE.list("targets"):
+                if mine(t):
+                    a = agents_by_host.get(t.get("host"))
+                    out.append(dict(targets_mod.public(t), agent_registered=bool(a), agent_last_seen=(a or {}).get("last_seen")))
+            return self._json(sorted(out, key=lambda t: (t.get("host", ""), t.get("name", ""))))
+        if method != "POST":
+            raise Http(405, "지원하지 않는 요청")
+        b = self._body()
+        pw = b.pop("password", None)
+        if pw is not None and (not isinstance(pw, str) or len(pw) > 256):
+            raise ValueError("비밀번호는 256자 이하")
+        if len(parts) == 2:                                    # 등록
+            doc = targets_mod.clean(b)
+            tid = "tg_" + secrets.token_hex(6)
+            doc.update(owner=user["name"], owner_id=user["id"], created_by=label(user), created_at=now_iso())
+            if pw:
+                doc["enc"] = VAULT.encrypt(tid, pw)
+            pw = None
+            if doc["method"] == "ssh" and not doc.get("enc"):
+                raise ValueError("SSH 방식은 접속 비밀번호가 필요합니다(암호화 저장)")
+            with LOCK:
+                STORE.set("targets", tid, doc)
+                self._audit(user, "수집 대상 등록", f"{doc['name']} · {doc['host']} · {doc['method']} · 경로 {len(doc['paths'])}개{' · 접속 비밀번호(암호화)' if doc.get('enc') else ''}")
+            return self._json(targets_mod.public(dict(doc, id=tid)))
+        if len(parts) == 4 and parts[3] in ("update", "delete", "run"):
+            tid = parts[2]
+            t = STORE.get("targets", tid) if agents.ID_RE.match(tid) else None
+            if not t or not mine(t):
+                raise Http(404, "수집 대상을 찾을 수 없습니다")
+            if parts[3] == "delete":
+                with LOCK:
+                    STORE.delete("targets", tid)
+                    self._audit(user, "수집 대상 삭제", f"{t['name']} · {t['host']}")
+                return self._json({"ok": True})
+            if parts[3] == "update":
+                doc = targets_mod.clean(b, t)
+                if pw:
+                    doc["enc"] = VAULT.encrypt(tid, pw)
+                pw = None
+                doc.update(updated_at=now_iso(), updated_by=label(user))
+                with LOCK:
+                    STORE.update("targets", tid, doc)
+                    self._audit(user, "수집 대상 수정", f"{doc['name']} · {doc['host']}{' · 접속 비밀번호 교체' if 'enc' in doc else ''}")
+                return self._json(targets_mod.public(STORE.get("targets", tid)))
+            # run
+            if t["method"] == "agent":
+                if not any(a.get("host") == t["host"] for a in STORE.list("agents")):
+                    raise ValueError(f"{t['host']} 서버 Agent 가 등록되어 있지 않습니다(관리 탭에서 서버 등록)")
+                STORE.update("targets", tid, {"run_requested_at": now_iso(), "run_requested_by": label(user), "run_seq": int(t.get("run_seq") or 0) + 1,
+                                              "last_result": "실행 요청됨 — 서버 Agent 가 1분 안에 수집"})
+                self._audit(user, "수집 실행 요청", f"{t['name']} · {t['host']} (서버 Agent)")
+                return self._json({"ok": True, "queued": True})
+            try:
+                res = targets_mod.ssh_collect(STORE, VAULT, t, label(user))
+                summary, ok = f"수집 {res['files']}개 · 승인 대기 {res['new_pending']} · 실패 {res['failed']}", res["failed"] == 0
+            except Exception as e:  # noqa: BLE001
+                res, summary, ok = None, f"접속·수집 실패: {str(e)[:150]}", False
+            STORE.update("targets", tid, {"last_run_at": now_iso(), "last_result": summary, "last_ok": ok})
+            self._audit(user, "수집 실행(SSH)", f"{t['name']} · {t['host']} → {summary}")
+            return self._json({"ok": ok, "result": summary, "detail": res})
+        raise Http(404, "not found")
+
     def _ops(self, method, path):
         """AI 운영: 오케스트레이터 · 유지보수 Agent (관리자)."""
         s = self._require(method, "ops.manage")
@@ -657,7 +743,8 @@ class Handler(BaseHTTPRequestHandler):
                 "reports": sorted([r for r in maint if r.get("type") == "report"], key=lambda r: r.get("at", ""), reverse=True)[:20],
                 "chat": (STORE.get("maint", "chat_log") or {}).get("messages", [])[-30:],
                 "perf": ops_agents.perf_summary()[:8], "errors": len([e for e in STORE.list("errors") if not e.get("resolved")]),
-                "llm": bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CERT_LLM_MOCK"))})
+                "llm": bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CERT_LLM_MOCK")),
+                "llm_model": agents.LLM_STATE.get("model"), "llm_error": agents.LLM_STATE.get("last_error")})
         b = self._body() if method == "POST" else {}
         if method == "POST" and path == "/api/ops/orchestrate":
             goal = str(b.get("goal", "")).strip()[:300] or "일일 운영 점검"
@@ -699,7 +786,7 @@ class Handler(BaseHTTPRequestHandler):
             return [public_user(u) for u in STORE.list("users")]
         if coll == "settings":
             raise Http(403, "설정은 전용 API 로 조회합니다")
-        if coll in ("secrets", "agents", "errors", "maint", "orch_runs"):
+        if coll in ("secrets", "agents", "errors", "maint", "orch_runs", "targets"):
             raise Http(403, "전용 API 로 조회합니다")
         data = STORE.list(coll)
         if role != "담당자":

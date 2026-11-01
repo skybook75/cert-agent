@@ -37,6 +37,9 @@ icacls C:\ProgramData\cert-agent /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Adm
 $a = New-ScheduledTaskAction -Execute "C:\Program Files\Python312\python.exe" -Argument "C:\cert-agent\cert_agent.py run"
 $t = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -RepetitionInterval (New-TimeSpan -Minutes 30)
 Register-ScheduledTask -TaskName "cert-agent" -Action $a -Trigger $t -User SYSTEM -RunLevel Highest -Force | Out-Null
+$a2 = New-ScheduledTaskAction -Execute "C:\Program Files\Python312\python.exe" -Argument "C:\cert-agent\cert_agent.py poll"
+$t2 = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
+Register-ScheduledTask -TaskName "cert-agent-poll" -Action $a2 -Trigger $t2 -User SYSTEM -RunLevel Highest -Force | Out-Null
 & "C:\Program Files\Python312\python.exe" C:\cert-agent\cert_agent.py run
 '@ | Set-Content C:\cert-agent\agent-setup.ps1 -Encoding UTF8
 "done" | Set-Content C:\cert-lab\bootstrap.done
