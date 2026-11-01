@@ -1,0 +1,62 @@
+[
+ {
+  "name": "AI 운영 탭(관리자): 오케스트레이터 그래프·유지보수 채팅·자가 진단 표시",
+  "pass": true,
+  "detail": "\n    오케스트레이터 Agent Multi-Agent · Supervisor 패턴 · Human-in-the-loop\n      목표를 주면 "
+ },
+ {
+  "name": "오케스트레이터: 계획 → Agent 순차 호출 → 결과 보고(알림 Agent가 만료 임박 알림 생성)",
+  "pass": true,
+  "detail": "최근 실행 · 2026-11-01 15:59 · 김관리(관리자) · 목표 “일일 운영 점검” · 정해진 점검 절차 · 16ms정상 모든 단계 정상수집 Agent · 서버 Agent 접속·최근 수집 현황 확인 0ms서버 Agent 0대(미접속 0) · 최근 수집 - 파일 0개 실패 0대조·검증 Agent · 승인 대기 수집 결과 분류 요약 0ms승인 대기 0"
+ },
+ {
+  "name": "그래프에 Agent별 실행 결과 색 표시",
+  "pass": true,
+  "detail": "상태 표시 노드 5개"
+ },
+ {
+  "name": "자가 진단: 화면 오류를 버그 리포트로, 이메일 누락을 데이터 품질 항목으로 제안",
+  "pass": true,
+  "detail": "열림 2건"
+ },
+ {
+  "name": "유지보수 Agent 대화: '진단해줘' → 열린 항목 요약",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "코드 개선: 분석 → 수정안 → 임시 사본 자동 테스트(컴파일·문법·기동·화면) 통과 → 반영 + 리포트",
+  "pass": true,
+  "detail": "반영 · 테스트 10/10 · web/index.html"
+ },
+ {
+  "name": "재시작 후 실제 화면에 반영됨",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "문법 오류 수정안 → 테스트 실패 → 2회 재시도 후에도 실패 → 반영하지 않음(서비스 영향 없음)",
+  "pass": true,
+  "detail": "미반영 · 시도 3회"
+ },
+ {
+  "name": "반영 되돌리기 → 원래 화면으로 복구",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "감사 로그: 오케스트레이션·자가 진단·코드 개선 반영·되돌림",
+  "pass": true,
+  "detail": "자가 진단, 코드 개선 되돌림, 코드 개선 반영, 오케스트레이션 실행"
+ },
+ {
+  "name": "권한: 담당자는 AI 운영 API 접근 불가(403)",
+  "pass": true,
+  "detail": "403"
+ },
+ {
+  "name": "MCP 서버: initialize · tools/list(5개) · tools/call list_expiring → shop.demo.test",
+  "pass": true,
+  "detail": "list_expiring, get_certificate, deployment_status, diagnose, run_orchestration"
+ }
+]

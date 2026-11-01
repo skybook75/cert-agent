@@ -463,7 +463,7 @@ AGENT_DEFS = [
     {"id": "notifier", "name": "알림 Agent", "desc": "D-30·D-7·만료 알림 생성, 이메일·문자·푸시 발송"},
     {"id": "deployer", "name": "배포 Agent", "desc": "4단계 승인 배포, 서버 적용·검사·자동 원복"},
     {"id": "qa", "name": "QA Agent", "desc": "가이드 RAG 기반 질의응답·답변 검증"},
-    {"id": "maint", "name": "유지보수 Agent", "desc": "자가 진단·버그 리포트·개선 반영"},
+    {"id": "maint", "name": "유지보수 AI", "desc": "자가 진단·버그 리포트·개선 반영"},
 ]
 TOOLS = {
     "collector.status": ("collector", "서버 Agent 접속·최근 수집 현황 확인"),
@@ -473,31 +473,26 @@ TOOLS = {
     "deployer.plan": ("deployer", "갱신됐지만 운영 미배포인 인증서 찾기 → 배포 요청 제안(사람 승인 필요)"),
     "deployer.status": ("deployer", "서버 적용 결과·실패 확인"),
     "qa.brief": ("qa", "만료 임박 인증서별 갱신 가이드 요약"),
-    "maint.diagnose": ("maint", "자가 진단(버그·운영·데이터 품질)"),
+    "maint.diagnose": ("maint", "유지보수 AI 자가 진단(버그·운영·데이터 품질)"),
     "report.summary": ("supervisor", "전체 상태 집계·보고"),
 }
 TEMPLATES = [
     (r"일일|매일|아침|전체 점검|운영 점검|daily", ["collector.status", "verifier.pending", "notifier.run", "notifier.send", "deployer.status", "maint.diagnose", "report.summary"]),
-    (r"만료|갱신|임박|이번 ?주", ["notifier.run", "qa.brief", "deployer.plan", "notifier.send", "report.summary"]),
-    (r"배포", ["deployer.status", "deployer.plan", "report.summary"]),
-    (r"수집|서버", ["collector.status", "verifier.pending", "report.summary"]),
+    (r"만료|갱신|임박|이번 ?주", ["notifier.run", "qa.brief", "deployer.plan", "notifier.send", "maint.diagnose", "report.summary"]),
+    (r"배포", ["deployer.status", "deployer.plan", "maint.diagnose", "report.summary"]),
+    (r"수집|서버", ["collector.status", "verifier.pending", "maint.diagnose", "report.summary"]),
     (r"진단|버그|오류|장애", ["maint.diagnose", "deployer.status", "report.summary"]),
-    (r"알림|메일", ["notifier.run", "notifier.send", "report.summary"]),
+    (r"알림|메일", ["notifier.run", "notifier.send", "maint.diagnose", "report.summary"]),
 ]
 
 
 def _plan(goal: str) -> tuple[list[str], str]:
-    out = _json_block(llm("너는 인증서 관리 플랫폼의 오케스트레이터(Supervisor)다. 목표를 달성할 도구 실행 순서를 정한다.\n"
-                          f"목표: {goal}\n도구: {json.dumps({k: v[1] for k, v in TOOLS.items()}, ensure_ascii=False)}\n"
-                          '배포 실행·삭제 같은 되돌리기 어려운 일은 제안까지만. 응답은 JSON만: {"steps": ["tool", ...], "why": "한 문장"}', 600))
-    if out and out.get("steps"):
-        steps = [s for s in out["steps"] if s in TOOLS][:10]
-        if steps:
-            return (steps if steps[-1] == "report.summary" else steps + ["report.summary"]), "LLM 계획: " + str(out.get("why", ""))[:200]
+    """정해진 운영 점검 절차(규칙)로 계획한다. 같은 목표면 항상 같은 순서 — 감사·재현 가능, 지연·비용 없음.
+    AI(LLM)는 계획에 쓰지 않고, 마지막 단계의 유지보수 AI(자가 진단)와 개별 Agent 안에서만 쓴다."""
     for pat, steps in TEMPLATES:
         if re.search(pat, goal, re.I):
-            return steps, "규칙 템플릿 계획"
-    return TEMPLATES[0][1], "기본(일일 운영 점검) 계획"
+            return steps, "정해진 점검 절차"
+    return TEMPLATES[0][1], "정해진 점검 절차(일일 운영 점검)"
 
 
 def _run_tool(store, tool: str, ctx: dict, actor: str) -> dict:

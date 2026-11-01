@@ -41,7 +41,7 @@ try {
   await p.click("[data-goal='일일 운영 점검']");
   await p.waitForFunction(() => document.querySelector("#orch-out")?.textContent.includes("최근 실행"), null, { timeout: 30000 }); await settle();
   const out = await p.textContent("#orch-out");
-  ok("오케스트레이터: 계획 → Agent 순차 호출 → 결과 보고(알림 Agent가 만료 임박 알림 생성)", /LLM 계획/.test(out) && /새 알림 1건/.test(out) && /수집 Agent/.test(out), out.slice(0, 200));
+  ok("오케스트레이터: 계획 → Agent 순차 호출 → 결과 보고(알림 Agent가 만료 임박 알림 생성)", /정해진 점검 절차/.test(out) && /새 알림 1건/.test(out) && /수집 Agent/.test(out), out.slice(0, 200));
   const runSt = await p.$$eval("#orch-graph .node.ok, #orch-graph .node.bad, #orch-graph .node.human", (n) => n.length);
   ok("그래프에 Agent별 실행 결과 색 표시", runSt >= 3, `상태 표시 노드 ${runSt}개`);
   // 자가 진단
