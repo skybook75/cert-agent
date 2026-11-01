@@ -19,14 +19,18 @@ RA = json.loads((BASE / "results" / "e2e_remote_agent.json").read_text(encoding=
 RO = json.loads((BASE / "results" / "e2e_ops_agents.json").read_text(encoding="utf-8"))
 RT = json.loads((BASE / "results" / "e2e_targets.json").read_text(encoding="utf-8"))
 AWS = [  # AWS 실서버(시드니 ap-southeast-2) 관리자 시나리오 — 단계, 결과, 근거
-    ("인프라", "CloudFormation 으로 EC2 4대(플랫폼 t3.small · web01 nginx · was01 Tomcat · win01 IIS Windows 2022) + 고정 IP + HTTPS(Let's Encrypt)", "통과", "https://certagent-ai.duckdns.org · SSM 원격 관리 4대 Online"),
-    ("계정·권한", "관리자 화면에서 담당자·검토자·승인자 계정 생성(첫 로그인 비밀번호 변경)", "통과", "자동 브라우저(Playwright)가 실제 HTTPS 주소에서 조작"),
+    ("인프라", "CloudFormation 으로 EC2 4대(플랫폼 · web01 nginx · was01 Tomcat · win01 IIS Windows 2022) + 고정 IP + HTTPS(Let's Encrypt)", "통과", "https://certagent-ai.duckdns.org · SSM 원격 관리 4대 Online"),
+    ("계정·권한", "관리자 화면에서 담당자·검토자·승인자 계정 생성(첫 로그인 비밀번호 변경)", "통과", "플랫폼 서버 안 자동 브라우저(Playwright)가 실제 HTTPS 주소에서 조작·녹화"),
     ("알림 채널", "AWS SES 이메일 + ntfy 푸시 테스트 발송", "통과", "skybook75@gmail.com 수신 · 문자(SMS)는 계정 상위 정책(SCP)이 AWS 문자 서비스를 차단해 미검증"),
     ("서버 Agent 등록", "web01(운영 배포 단계) · was01 · win01 등록, 토큰 1회 표시", "통과", "토큰은 해시만 저장"),
-    ("PFX 비밀번호", "담당자가 was01·win01 폴더 범위로 비밀번호 암호화 등록", "통과", "AES-256-GCM · Agent 공개키로 감싸 전달"),
+    ("PFX 비밀번호", "담당자가 was01·win01 폴더 범위로 비밀번호 암호화 등록", "통과", "AES-256-GCM · Agent 공개키(RSA-OAEP)로 감싸 전달"),
     ("수집", "web01 파일 3개→4건, was01 PFX(보관함 비밀번호로 열기)→3건, win01 PFX + Windows 인증서 저장소→3건", "통과", "개인키 파일 제외 · 위치 '호스트:경로'"),
-    ("승인·알림", "관리자 수집 승인 → 오케스트레이터 일일 점검: 알림 5건 생성 → 이메일 5건 발송(실패 0)", "통과", "Gmail 수신 확인 대상"),
-    ("AI", "Claude API 연결 — 계정에서 쓸 수 있는 모델 자동 선택(claude-sonnet-4-6)", "통과", "모델 미지원 시 자동 전환 · 실패 시 규칙형 대체"),
+    ("수집 대상", "담당자가 수집 대상 등록 → [수집 실행]: 서버 Agent 1분 poll 수집 5개 · SSH(에이전트 없음) 수집 2개", "통과", "SSH의 PFX 1건은 IP로 접속해 호스트명 범위 비밀번호와 안 맞아 실패 → 범위를 호스트 기준으로 맞추면 해결(운영 안내)"),
+    ("승인·알림", "관리자 수집 승인 → 오케스트레이터 일일 점검: 알림 5건 생성 → 이메일 5건 발송(실패 0)", "통과", "Gmail 수신"),
+    ("갱신·배포", "web01 갱신본 → 갱신본 자동 인식 → 요청·검토·승인 4단계 → 서버 Agent가 nginx에 설치: nginx -t OK → reload → 응답 지문 = 배포본", "통과", "실제 nginx 만료일 2026-11-07 → 2027-12-03"),
+    ("자동 원복", "키가 맞지 않는 인증서를 승인 → 1분 poll 배포 시 nginx -t 실패(key values mismatch) → 백업으로 자동 원복 → 실패 보고", "통과", "서비스는 기존 인증서 유지 · 배포 화면 'web01 실패·원복'"),
+    ("QA 챗봇", "담당자 질문 → Claude(claude-sonnet-4-6) 답변 + 답변 검증", "통과", "등록 인증서 정보·가이드 근거 인용"),
+    ("유지보수 Agent", "관리자가 '대시보드에 이번 주 만료 타일 추가' 요청 → Claude 수정안 → 임시 사본 자동 테스트 10/10 → 반영·재시작", "통과", "실제 화면에 타일 추가됨 · 단, 기존 D-7 타일과 의미가 겹쳐 사람 검토가 필요함을 확인(테스트 게이트는 동작 검증, 기획 적합성은 사람이 판단)"),
 ]
 AWS_FIX = [
     ("Amazon Linux 2023 파이썬 3.9에서 플랫폼이 시작되지 않음(타입 표기 str | None)", "모든 모듈에 지연 평가(from __future__ import annotations), 3.9로 기동 검증"),
@@ -35,6 +39,8 @@ AWS_FIX = [
     ("원격 서버 수집분은 배포 승인 시 원본 파일이 없어 실패", "보관한 공개 인증서(PEM)로 배포 기록, 설치는 서버 Agent"),
     ("Claude API 400/404(모델명이 계정과 다름)", "Models API로 사용 가능한 모델 조회 후 자동 선택, 오류는 AI 운영 화면에 표시"),
     ("프리 티어 계정에서 Windows t3.medium 거부", "프리 티어 사양(t3.small)으로 변경"),
+    ("배포 대상 파일에 새 인증서를 놓아 둔 incoming 폴더 파일까지 포함", "incoming·backup·old·archive 폴더는 교체 대상에서 제외"),
+    ("서버 적용이 실패해도 플랫폼의 '현재 배포본'은 승인된 인증서로 표시(실제 서버는 이전 인증서)", "배포 화면에 '실패·원복' 표시 + 자가 진단이 '서버 배포 실패·자동 원복'(높음)으로 보고 — 현재 배포본 자동 되돌림은 개선 과제"),
 ]
 
 FINDINGS = [  # (시나리오, 증상, 원인, 조치, 확인)
@@ -60,8 +66,10 @@ def main():
     if OUT.exists():
         shutil.rmtree(OUT)
     (OUT / "shots").mkdir(parents=True)
-    for f in (ACC / "shots").iterdir():
-        shutil.copy2(f, OUT / "shots" / f.name)
+    for d in (BASE / "results" / "keep", ACC / "shots"):      # keep: 재실행해도 지워지지 않는 증적(실제 Claude 화면 등)
+        if d.exists():
+            for f in d.iterdir():
+                shutil.copy2(f, OUT / "shots" / f.name)
     sc_html = []
     for s in R["scenarios"]:
         ok = sum(x["pass"] for x in s["steps"]); n = len(s["steps"])
@@ -111,11 +119,18 @@ nav.toc a{{display:inline-block;margin:0 10px 6px 0;color:var(--acc)}}.callout{{
 <section class="sc"><p class="goal">원격 서버 2대(web01 nginx 체인+개인키, was01 Tomcat PFX)를 흉내 낸 환경에서 서버 Agent가 토큰으로 접속해 수집·업로드하고, PFX 비밀번호는 보관함에서 Agent 공개키로 암호화 전달받아 엽니다. 승인된 운영 배포를 실제 TLS 서버에 설치하고 응답 지문을 확인하며, 키가 맞지 않는 인증서는 설정 검사에서 막혀 자동 원복됩니다. AWS EC2 실서버 테스트 전 단계 검증입니다.</p>
 <div class="tbl"><table><thead><tr><th>검증 항목</th><th>실제 결과</th><th>판정</th></tr></thead><tbody>{ra_rows}</tbody></table></div>
 <div class="shots"><figure><a href="shots/R01_admin_agents.png" target="_blank"><img loading="lazy" src="shots/R01_admin_agents.png" alt=""></a><figcaption>관리 탭 — 서버 Agent 목록(최근 결과)과 등록 시 1회 표시되는 토큰·설정 파일</figcaption></figure></div></section>
-<h2 id="AWS">AWS 실서버 테스트 (진행 중)</h2>
+<h2 id="AWS">AWS 실서버 테스트 — 관리자 시나리오 12단계 통과</h2>
 <div class="card"><p class="goal">실제 클라우드 서버 4대에 테스트 전용 인증서(사설 CA)를 두고, 관리자가 하는 일을 플랫폼 서버 안의 자동 브라우저가 실제 주소에서 그대로 수행했습니다.</p>
 <div class="tbl"><table><thead><tr><th>단계</th><th>내용</th><th>판정</th><th>근거</th></tr></thead><tbody>{aws_rows}</tbody></table></div>
 <h3>실서버에서 발견해 고친 문제</h3><div class="tbl"><table><thead><tr><th>증상</th><th>조치</th></tr></thead><tbody>{aws_fix}</tbody></table></div>
-<p class="note">다음: 갱신본 4단계 배포 → web01 nginx 실제 적용·응답 지문 확인 → 키 불일치 인증서 자동 원복 → QA 챗봇·유지보수 Agent(Claude) 실서버 검증</p></div>
+<div class="shots">
+<figure><a href="shots/AWS_deploy_board.png" target="_blank"><img loading="lazy" src="shots/AWS_deploy_board.png" alt=""></a><figcaption>AWS: 4단계 배포 완료 · 운영 'web01 실패·원복'(키 불일치 인증서 자동 원복)</figcaption></figure>
+<figure><a href="shots/AWS_maint_report.png" target="_blank"><img loading="lazy" src="shots/AWS_maint_report.png" alt=""></a><figcaption>AWS: 유지보수 Agent — Claude 수정안, 자동 테스트 10/10, 반영 리포트·diff</figcaption></figure>
+<figure><a href="shots/AWS_dash_after_agent.png" target="_blank"><img loading="lazy" src="shots/AWS_dash_after_agent.png" alt=""></a><figcaption>AWS: 유지보수 Agent가 추가한 '이번 주 만료' 타일</figcaption></figure>
+<figure><a href="shots/AWS_orchestrator.png" target="_blank"><img loading="lazy" src="shots/AWS_orchestrator.png" alt=""></a><figcaption>AWS: 오케스트레이터 일일 점검(알림 생성·발송)</figcaption></figure>
+<figure><a href="shots/AWS_qa_claude.png" target="_blank"><img loading="lazy" src="shots/AWS_qa_claude.png" alt=""></a><figcaption>AWS: QA 챗봇 실제 Claude 답변 + 검증</figcaption></figure>
+<figure><a href="shots/AWS_targets.png" target="_blank"><img loading="lazy" src="shots/AWS_targets.png" alt=""></a><figcaption>AWS: 수집 대상(관리자 전체) — 서버 Agent·SSH 실행 결과</figcaption></figure>
+</div></div>
 <h2 id="O01">AI 운영 — 오케스트레이터 · 유지보수 Agent · 자가 진단 · MCP <span class="badge ok">{ro_ok}</span></h2>
 <section class="sc"><div class="tbl"><table><thead><tr><th>검증 항목</th><th>실제 결과</th><th>판정</th></tr></thead><tbody>{ro_rows}</tbody></table></div>
 <div class="shots"><figure><a href="shots/O01_ai_ops.png" target="_blank"><img loading="lazy" src="shots/O01_ai_ops.png" alt=""></a><figcaption>AI 운영 탭 — Agent 그래프, 유지보수 Agent 대화·반영 리포트, 자가 진단</figcaption></figure></div></section>
