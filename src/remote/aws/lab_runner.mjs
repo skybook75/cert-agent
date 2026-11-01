@@ -94,7 +94,10 @@ try {
     const O = await page("owner"); await login(O, "own"); await tab(O, "vault");
     for (const [scope, label, p1] of [["was01/opt/tomcat/conf/ssl", "was01 Tomcat 키스토어", process.env.PW_PAY], ["win01/C/certs", "win01 IIS 포털 PFX", process.env.PW_PORTAL]]) {
       await O.selectOption("#vs-scope", "folder"); await O.fill("#vs-path", scope); await O.fill("#vs-label", label); await O.fill("#vs-p1", p1); await O.fill("#vs-p2", p1);
-      await O.click("#vs-go"); await toast(O); await settle(O);
+      await O.click("#vs-go");
+      await O.waitForFunction(() => !document.getElementById("toast").hidden || (document.getElementById("vs-err")?.textContent || "").trim(), null, { timeout: 30000 }).catch(() => {});
+      console.log("vault:", label, "|", await O.textContent("#toast").catch(() => ""), "|", await O.textContent("#vs-err").catch(() => ""));
+      await O.evaluate(() => (document.getElementById("toast").hidden = true)); await settle(O);
     }
     await shot(O, "PFX비밀번호_보관함_담당자등록", "#p-vault");
     const vtxt = await O.textContent("#p-vault");
@@ -186,6 +189,7 @@ try {
   }
 } catch (e) { console.error(e); ok("실행 오류 없음", false, e.message); }
 finally {
+  if (phase === "setup" && S.tokens) console.log("TOKENS " + JSON.stringify(S.tokens));
   for (const c of ctxs) await c.close();
   await browser.close();
   fs.writeFileSync(path.join(OUT, "result.json"), JSON.stringify(R, null, 1));
