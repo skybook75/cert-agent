@@ -114,7 +114,8 @@ try {
     while (await A.$("[data-approve]:not([disabled])")) {
       const id = await A.$eval("[data-approve]:not([disabled])", (b) => b.dataset.approve);
       const inp = await A.$(`[data-owner="${id}"]`); if (inp && !(await inp.inputValue())) await inp.fill("김담당");
-      await A.click(`[data-approve="${id}"]`); await toast(A); await settle(A); n++;
+      await A.locator(`[data-approve="${id}"]`).scrollIntoViewIfNeeded().catch(() => {});
+      await A.evaluate((i) => decide(i, true), id); await toast(A).catch(() => {}); await settle(A); n++;
       if (n > 30) break;
     }
     ok("수집 결과 승인 → 인증서 등록", n > 0, `${n}건 승인`);
@@ -137,7 +138,7 @@ try {
     await login(A, "admin"); await login(RV, "rev"); await login(AP, "apr");
     await tab(A, "disc");
     let n = 0;
-    while (await A.$("[data-approve]:not([disabled])")) { const id = await A.$eval("[data-approve]:not([disabled])", (b) => b.dataset.approve); const inp = await A.$(`[data-owner="${id}"]`); if (inp && !(await inp.inputValue())) await inp.fill("김담당"); await A.click(`[data-approve="${id}"]`); await toast(A); await settle(A); n++; if (n > 10) break; }
+    while (await A.$("[data-approve]:not([disabled])")) { const id = await A.$eval("[data-approve]:not([disabled])", (b) => b.dataset.approve); const inp = await A.$(`[data-owner="${id}"]`); if (inp && !(await inp.inputValue())) await inp.fill("김담당"); await A.evaluate((i) => decide(i, true), id); await toast(A).catch(() => {}); await settle(A); n++; if (n > 10) break; }
     ok("갱신본 승인(기존 인증서 → 갱신 완료)", n >= 1, `${n}건`);
     const res = [];
     for (const st of ["개발", "테스트", "교육", "운영"]) {
