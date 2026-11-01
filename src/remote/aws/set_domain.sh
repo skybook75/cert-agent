@@ -1,8 +1,9 @@
 #!/bin/bash
 # 플랫폼 도메인 지정(Caddy 가 Let's Encrypt 인증서 자동 발급) + 시나리오 결과(캡처·영상) 열람 경로
-#   set_domain.sh certagent.duckdns.org
+#   set_domain.sh certagent.duckdns.org [추가 도메인 ...]
 set -euo pipefail
 DOMAIN="$1"
+EXTRA=""; for d in "${@:2}"; do EXTRA="$EXTRA, $d"; done
 T=$(curl -s -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
 IP=$(curl -s -H "X-aws-ec2-metadata-token: $T" http://169.254.169.254/latest/meta-data/public-ipv4)
 ALT="cert-platform.${IP//./-}.sslip.io"
@@ -11,7 +12,7 @@ install -d -m 755 /var/lib/cert-lab-run/out
 RP=$(cat /var/lib/cert-lab-run/results_path)
 chmod 755 /var/lib/cert-lab-run
 cat > /etc/caddy/Caddyfile <<EOF
-$DOMAIN, $ALT {
+$DOMAIN$EXTRA, $ALT {
   encode gzip
   header Strict-Transport-Security "max-age=31536000"
   handle_path /lab-$RP/* {
