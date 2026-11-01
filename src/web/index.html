@@ -1,0 +1,1567 @@
+<title>인증서 관리 플랫폼</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: 상단 바(사용자·연결 상태) → 역할별 탭 → 탭 본문. 운영 도구라 표·상태 칩 중심. 로그인 전에는 로그인 카드만. */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --ink: #16202b; --muted: #5a6675; --line: #dce2e9;
+  --accent: #1d4f7a; --accent-soft: #e5eef7;
+  --ok: #1f7a4d; --ok-soft: #e2f3e9; --warn: #9a6400; --warn-soft: #fbf0d9; --crit: #b3261e; --crit-soft: #fbe5e3;
+  --font-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #10151c; --surface: #172029; --ink: #e5eaf0; --muted: #98a4b3; --line: #29343f; --accent: #82b2dd; --accent-soft: #1b2b3b;
+  --ok: #70ce9b; --ok-soft: #163125; --warn: #e6b45a; --warn-soft: #352a14; --crit: #ef8a80; --crit-soft: #391c1a; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #10151c; --surface: #172029; --ink: #e5eaf0; --muted: #98a4b3; --line: #29343f; --accent: #82b2dd; --accent-soft: #1b2b3b;
+  --ok: #70ce9b; --ok-soft: #163125; --warn: #e6b45a; --warn-soft: #352a14; --crit: #ef8a80; --crit-soft: #391c1a; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.5; margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 48px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+.who { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.who select, .who input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+.who input { width: 96px; }
+.conn { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: var(--surface); display: inline-flex; gap: 6px; align-items: center; }
+.conn i { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); display: inline-block; }
+.conn.ok i { background: var(--ok); }
+.me { font-weight: 600; color: var(--ink); }
+nav { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+nav button { font: inherit; background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; color: var(--muted); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+nav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.badge { font-size: 11px; font-weight: 700; background: var(--crit); color: var(--surface); border-radius: 999px; padding: 0 6px; min-width: 18px; text-align: center; }
+.badge:empty { display: none; }
+section[role="tabpanel"] { display: flex; flex-direction: column; gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.card h2 { margin: 0 0 10px; font-size: 15px; }
+.card h3 { margin: 14px 0 8px; font-size: 13.5px; }
+.tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+button.tile { font: inherit; color: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; }
+button.tile:hover { border-color: var(--accent); } button.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tile b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 12px; color: var(--muted); }
+.tile.crit b { color: var(--crit); } .tile.warn b { color: var(--warn); } .tile.ok b { color: var(--ok); } .tile.acc b { color: var(--accent); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.grow { flex: 1 1 auto; }
+button.btn { font: inherit; font-weight: 600; border-radius: 6px; padding: 6px 12px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+button.btn.danger { color: var(--crit); }
+button.btn.sm { padding: 3px 9px; font-size: 12.5px; }
+button.btn:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input.f, select.f, textarea.f { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; min-width: 0; }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 720px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--bg); white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.nw, th.nw { white-space: nowrap; }
+.mono { font-family: var(--font-mono); font-size: 12.5px; }
+.sub { display: block; color: var(--muted); font-size: 12px; }
+tr.click { cursor: pointer; } tr.click:hover, tr.sel { background: var(--accent-soft); }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; background: var(--accent-soft); color: var(--accent); }
+.pill.s-정상, .pill.k-일치, .pill.k-갱신본, .pill.k-확인_완료, .pill.d-배포_완료, .pill.d-검토_통과, .pill.r-완료, .pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.s-D-30, .pill.k-불일치, .pill.k-이전_버전, .pill.d-요청, .pill.r-진행_중, .pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.s-D-7, .pill.s-만료, .pill.k-미수집, .pill.d-검토_반려, .pill.d-원복, .pill.bad { background: var(--crit-soft); color: var(--crit); }
+.pill.muted { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+button.pill { border: 1px solid transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; padding: 3px 10px; }
+button.pill:hover { filter: brightness(0.96); text-decoration: underline; }
+button.pill[aria-expanded="true"] { border-color: currentColor; }
+button.pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.empty { color: var(--muted); padding: 18px 4px; }
+.split { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.cols2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+dl.kv { display: grid; grid-template-columns: 120px minmax(0, 1fr); margin: 0; }
+dl.kv dt, dl.kv dd { margin: 0; padding: 6px 0; border-top: 1px solid var(--line); }
+dl.kv dt { color: var(--muted); font-size: 12.5px; }
+dl.kv dd { overflow-wrap: anywhere; }
+.stages { display: flex; gap: 4px; flex-wrap: wrap; }
+.stage { font-size: 12px; border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; color: var(--muted); white-space: nowrap; }
+.stage.done { background: var(--ok-soft); color: var(--ok); border-color: transparent; font-weight: 600; }
+.stage.wip { background: var(--warn-soft); color: var(--warn); border-color: transparent; font-weight: 600; }
+.stage.bad { background: var(--crit-soft); color: var(--crit); border-color: transparent; font-weight: 600; }
+.chat { display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; padding-right: 4px; }
+.msg { border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 92%; }
+.msg.me { align-self: flex-end; background: var(--accent); color: var(--surface); }
+.msg.bot { align-self: flex-start; background: var(--bg); border: 1px solid var(--line); }
+.msg .meta { display: block; margin-top: 8px; font-size: 12px; color: var(--muted); white-space: normal; }
+.msg .meta a { color: var(--accent); }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.examples button, .chips button { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button[aria-pressed="true"] { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+pre.email { white-space: pre-wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-family: var(--font-body); font-size: 13px; margin: 8px 0 0; }
+.verify { align-self: flex-start; max-width: 92%; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 12px; background: var(--surface); font-size: 13px; margin-top: -4px; }
+.verify.v-적합 { border-left-color: var(--ok); } .verify.v-주의 { border-left-color: var(--warn); } .verify.v-부적합 { border-left-color: var(--crit); } .verify.v-참고 { border-left-color: var(--muted); }
+.verify .vh { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 600; }
+.verify .score { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+.verify .score i { display: inline-block; width: 56px; height: 6px; border-radius: 6px; background: var(--bg); overflow: hidden; }
+.verify .score i b { display: block; height: 100%; background: var(--accent); }
+.verify ul { margin: 6px 0 0; padding-left: 18px; } .verify li { margin: 2px 0; }
+.msg.superseded { opacity: .55; }
+.msg.superseded::before { content: "1차 답변 · 검증에서 부적합 → 아래에 다시 씀"; display: block; font-size: 11.5px; font-weight: 700; color: var(--crit); margin-bottom: 4px; }
+details.agentlog { font-size: 12.5px; color: var(--muted); margin: -2px 0 10px; }
+details.agentlog summary { cursor: pointer; font-weight: 600; }
+details.agentlog ol { margin: 6px 0 0; padding-left: 20px; font-family: var(--font-mono); font-size: 12px; }
+.verify .rules { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.gdrop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 12px; background: var(--bg); }
+.gdrop.over { border-color: var(--accent); background: var(--accent-soft); }
+.toast { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 8px; font-size: 13px; z-index: 20; max-width: min(520px, calc(100vw - 32px)); }
+.note { font-size: 12.5px; color: var(--muted); }
+.auth { max-width: 400px; margin: 40px auto; }
+.auth form { display: grid; gap: 10px; }
+.auth label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.err { color: var(--crit); font-size: 13px; min-height: 1.2em; }
+.check-ok { color: var(--ok); font-weight: 700; } .check-bad { color: var(--crit); font-weight: 700; }
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .split, .cols2 { grid-template-columns: 1fr; } }
+/* 좁은 화면: 표를 행마다 카드로 (머리글은 각 칸 왼쪽에 표시), 탭은 가로로 밀기 */
+@media (max-width: 640px) {
+  .tbl table { min-width: 0 !important; }
+  .tbl table thead { display: none; }
+  .tbl table, .tbl tbody { display: block; }
+  .tbl table tr { display: block; border: 1px solid var(--line); border-radius: 10px; margin: 0 0 10px; padding: 6px 12px; background: var(--surface); }
+  .tbl table tr.sel { border-color: var(--accent); }
+  .tbl table td { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; border: 0; padding: 5px 0; text-align: right; }
+  .tbl table td > * { text-align: right; }
+  .tbl table td[data-l]::before { content: attr(data-l); color: var(--muted); font-size: 12px; text-align: left; flex: 0 0 34%; }
+  .tbl table td:first-child { font-weight: 600; }
+  .tbl table td[colspan], .tbl table td:not([data-l]) { display: block; text-align: left; }
+  .tbl table td .row { justify-content: flex-end; }
+  .tbl table td.mono, .tbl table td .mono, .tbl table td .sub { word-break: break-all; }
+  nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { white-space: nowrap; flex: 0 0 auto; }
+  .pill { white-space: normal; }
+}
+@media (max-width: 480px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } dl.kv { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>인증서 관리 플랫폼</h1>
+      <span class="note">수집 · 알림 · QA 챗봇 Agent와 관리대장 · 승인 · 4단계 배포 · 보고서 · <a href="https://claude.ai/artifact/8Dmy99QR2AyK6QmzpXS6B5" target="_blank" rel="noopener" style="color:var(--accent)">PoC 단계별 리뷰 ↗</a></span>
+    </div>
+    <div class="who" id="who">
+      <span class="conn" id="conn"><i></i><span id="conn-text">연결 확인 중</span></span>
+    </div>
+  </header>
+  <div id="auth" hidden></div>
+  <div id="app" hidden>
+    <nav role="tablist" id="tabs"></nav>
+    <section role="tabpanel" id="p-dash"></section>
+    <section role="tabpanel" id="p-ledger" hidden></section>
+    <section role="tabpanel" id="p-disc" hidden></section>
+    <section role="tabpanel" id="p-certs" hidden></section>
+    <section role="tabpanel" id="p-vault" hidden></section>
+    <section role="tabpanel" id="p-deploy" hidden></section>
+    <section role="tabpanel" id="p-noti" hidden></section>
+    <section role="tabpanel" id="p-report" hidden></section>
+    <section role="tabpanel" id="p-qa" hidden>
+      <div class="card">
+        <h2>QA 챗봇</h2>
+        <p class="note" id="qa-engine">발급기관별 갱신 가이드와 등록 인증서 정보를 근거로 답합니다. 답변마다 근거 가이드 번호가 붙고, 답변 검증 AI가 정확도·품질을 평가해 바로 아래에 피드백을 붙입니다.</p>
+        <div class="examples" id="qa-examples"></div>
+        <div class="chat" id="chat" aria-live="polite"></div>
+        <form class="row" id="qa-form" style="margin-top:10px">
+          <input class="f grow" id="qa-input" placeholder="예) pay.example.co.kr 인증서는 언제 만료되고 어떻게 갱신해?" maxlength="300" aria-label="질문">
+          <button class="btn primary" type="submit" id="qa-send">질문</button>
+        </form>
+      </div>
+      <div class="card" id="qa-guides"></div>
+    </section>
+    <section role="tabpanel" id="p-hist" hidden></section>
+    <section role="tabpanel" id="p-admin" hidden></section>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="core.js"></script>
+<script src="xlsx-lite.js"></script>
+<script src="scanner.js"></script>
+<script>
+"use strict";
+const C = window.CertCore, X = window.XlsxLite;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nowIso = () => new Date().toISOString().slice(0, 19) + "+00:00";
+const COLLS = ["certificates", "discoveries", "renewals", "notifications", "scan_runs", "audit", "deployments", "environments", "import_runs", "guides"];
+const S = { mode: null, user: null, csrf: null, health: {}, data: Object.fromEntries(COLLS.map((c) => [c, []])), users: [], smtp: null,
+  index: null, guides: [], selCert: null, tab: "dash", certFilter: { q: "", status: "", issuer: "" },
+  rep: { issuer: "", owner: "", status: "", renewal: "", quick: "" }, importPreview: null, llm: false, sample: null, db: null, canWrite: true };
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 3200); }
+const role = () => S.user?.role || "";
+const actor = () => `${S.user?.name || "사용자"}(${role()})`;
+const can = (action) => C.can(role(), action) && (S.mode === "server" || S.canWrite);
+const nameOf = (label) => String(label || "").split("(")[0];
+
+// ───────── 서버 API (세션 쿠키 + CSRF 토큰)
+async function api(method, url, body) {
+  const headers = { Accept: "application/json" };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (method !== "GET" && S.csrf) headers["X-CSRF-Token"] = S.csrf;
+  const r = await fetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, credentials: "same-origin" });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && S.user && !url.endsWith("login")) { S.user = null; showAuth("login", "세션이 만료되었습니다. 다시 로그인하세요."); }
+  if (!r.ok) { const e = new Error(j.error || `HTTP ${r.status}`); e.status = r.status; throw e; }
+  return j;
+}
+
+// ───────── 쓰기: 작업(action) 단위. PC 서버는 서버가 권한·필드·상태를 검사, 웹 시연은 같은 권한표로 화면에서 검사
+async function act(action, ops, summary) {
+  if (S.mode === "server") return api("POST", "api/action", { action, ops, summary });
+  if (!C.can(role(), action)) throw new Error(`권한이 없습니다 (${role()})`);
+  if (!S.canWrite) throw new Error("읽기 전용 보기입니다");
+  if (role() === "담당자" && C.OWNER_SCOPED.includes(action)) {
+    const certs = S.raw.certificates;
+    for (const o of ops) {
+      const cid = o.op === "closeAlerts" ? o.cert_id : o.coll === "certificates" ? o.id : o.coll === "renewals" ? o.data.old_cert_id
+        : o.coll === "deployments" ? (o.data.cert_id || S.raw.deployments.find((d) => d.id === o.id)?.cert_id)
+        : o.coll === "notifications" ? S.raw.notifications.find((n) => n.id === o.id)?.cert_id : null;
+      if (cid && !C.isOwner(S.user, certs.find((c) => c.id === cid))) throw new Error("본인 담당 인증서만 처리할 수 있습니다");
+    }
+  }
+  for (const o of ops) {
+    if (o.op === "set") { const d = { ...o.data }; delete d.id; await S.db.collection(o.coll).doc(o.id).set(JSON.parse(JSON.stringify(d))); }
+    else if (o.op === "update") await S.db.collection(o.coll).doc(o.id).update(JSON.parse(JSON.stringify(o.data)));
+    else if (o.op === "closeAlerts") for (const n of S.raw.notifications.filter((n) => n.cert_id === o.cert_id && !n.closed))
+      await S.db.collection("notifications").doc(n.id).update({ closed: true, closed_at: nowIso() });
+  }
+  const lab = action === "discovery.decide" ? (ops.every((o) => o.coll === "discoveries" && o.data?.status === "반려") ? "수집 반려" : "수집 승인") : ACTION_LABEL[action] || action;
+  await S.db.collection("audit").doc("a_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6)).set({ at: nowIso(), actor: actor(), action: lab, detail: summary || `${ops.length}건` });
+  return { ok: true };
+}
+const ACTION_LABEL = { "discovery.decide": "수집 승인·반려", "discovery.review": "수집 검토", "cert.manage": "관리정보 변경", "cert.renewal": "갱신 처리",
+  "import.excel": "관리대장 등록", "deploy.request": "배포 요청", "deploy.review": "배포 검토", "deploy.approve": "배포 승인", "deploy.rollback": "배포 원복", "noti.read": "알림 확인", "guide.manage": "가이드 관리" };
+
+// 웹 시연: 서버와 같은 조회 범위(담당자는 본인 담당분만)
+function scope(raw) {
+  if (role() !== "담당자") return { ...raw, audit: C.can(role(), "audit.view") ? raw.audit : [] };
+  const mine = new Set(raw.certificates.filter((c) => C.isOwner(S.user, c)).map((c) => c.id));
+  return { certificates: raw.certificates.filter((c) => mine.has(c.id)), notifications: raw.notifications.filter((n) => mine.has(n.cert_id)),
+    deployments: raw.deployments.filter((d) => mine.has(d.cert_id)), environments: raw.environments.filter((e) => mine.has(e.cert_id) || mine.has(e.prev_cert_id)),
+    renewals: raw.renewals.filter((r) => mine.has(r.old_cert_id) || mine.has(r.new_cert_id)), audit: raw.audit.filter((a) => nameOf(a.actor) === S.user.name),
+    discoveries: [], scan_runs: [], import_runs: [], guides: raw.guides || [] };
+}
+async function load() {
+  if (S.mode === "server") {
+    await Promise.all(COLLS.map(async (k) => { try { S.data[k] = await api("GET", `api/db/${k}`); } catch { S.data[k] = []; } }));
+    if (role() === "관리자") { try { S.users = await api("GET", "api/db/users"); S.smtp = await api("GET", "api/settings/smtp"); S.agents = await api("GET", "api/agents"); } catch {} }
+  } else {
+    S.raw = {};
+    await Promise.all(COLLS.map(async (k) => { try { const snap = await S.db.collection(k).get(); S.raw[k] = snap.docs.map((d) => ({ ...d.data(), id: d.id })); } catch { S.raw[k] = []; } }));
+    S.data = scope(S.raw);
+  }
+  await loadVault();
+  renderAll();
+}
+
+// ───────── 시작: PC 서버(로그인) 또는 웹 공유 DB(시연 모드)
+async function init() {
+  try { const g = await fetch("guides.json"); S.guides = await g.json(); S.index = C.buildIndex(S.guides); } catch { S.guides = []; S.index = C.buildIndex([]); }
+  renderExamples();
+  try {
+    const r = await fetch("api/health", { headers: { Accept: "application/json" } });
+    if (!r.ok || !(r.headers.get("content-type") || "").includes("json")) throw 0;
+    S.health = await r.json(); S.mode = "server"; S.llm = S.health.llm;
+  } catch { S.mode = "artifact"; }
+  if (S.mode === "server") {
+    $("conn").classList.add("ok"); $("conn-text").textContent = `PC 서버 · ${S.llm ? "Claude 연결" : "Claude 키 없음(검색형)"}`;
+    if (S.health.setup_needed) return showAuth("setup");
+    try { const me = await api("GET", "api/me"); S.user = me.user; S.csrf = me.csrf; } catch { return showAuth("login"); }
+    if (S.user.must_change) return showAuth("change");
+    return startApp();
+  }
+  S.sharedDb = window.claude ? await window.claude.use("db") : null;
+  S.sample = window.claude ? await window.claude.use("sample") : null;
+  S.downloads = window.claude ? await window.claude.use("downloads") : null;
+  const user = window.claude ? await window.claude.use("user") : null;
+  S.sharedWrite = true;
+  if (user) { const w = await user.can("data.write"); if (w === false) S.sharedWrite = false; }
+  S.llm = !!S.sample;
+  let saved = {}; try { saved = JSON.parse(localStorage.getItem("demoUser") || "{}"); } catch {}
+  S.user = { name: saved.name || "김관리", role: C.ROLES.includes(saved.role) ? saved.role : "관리자", email: saved.email || "" };
+  try { S.source = localStorage.getItem("demoSource") || "snapshot"; } catch { S.source = "snapshot"; }
+  await useSource(S.source, false);
+  startApp();
+}
+
+// 웹 시연 데이터: 시연 스냅샷(이 브라우저에서만 바뀜, 누구나 열람) 또는 공유 DB(로그인한 편집자)
+function memDb(seed) {
+  const st = JSON.parse(JSON.stringify(seed || {}));
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  return { collection: (n) => ({
+    get: async () => ({ docs: Object.entries(st[n] || {}).map(([id, d]) => ({ id, data: () => clone(d) })) }),
+    doc: (id) => ({ set: async (d) => { (st[n] ||= {})[id] = clone(d); }, update: async (d) => { (st[n] ||= {})[id] = { ...((st[n] || {})[id] || {}), ...clone(d) }; } }) }) };
+}
+async function useSource(src, reload) {
+  if (src === "shared" && S.sharedDb) { S.db = S.sharedDb; S.canWrite = S.sharedWrite; S.source = "shared"; }
+  else {
+    if (!S.seed) { try { S.seed = await (await fetch("seed.json")).json(); } catch { S.seed = {}; } }
+    S.db = memDb(S.seed); S.canWrite = true; S.source = "snapshot";
+  }
+  try { localStorage.setItem("demoSource", S.source); } catch {}
+  lockVault();
+  $("conn").classList.add("ok");
+  $("conn-text").textContent = S.source === "shared" ? `웹 시연 · 공유 DB · ${S.sample ? "Claude 연결" : "검색형 답변"}${S.canWrite ? "" : " · 읽기 전용"}`
+    : `웹 시연 · 시연 데이터(이 브라우저에서만 바뀜) · ${S.sample ? "Claude 연결" : "검색형 답변"}`;
+  if (reload) { renderWho(); await load(); toast(S.source === "shared" ? "공유 DB로 전환했습니다" : "시연 데이터를 처음 상태로 불러왔습니다"); }
+}
+
+function renderWho() {
+  const w = $("who"); w.querySelectorAll(":scope > :not(#conn)").forEach((n) => n.remove());
+  if (!S.user) return;
+  if (S.mode === "server") {
+    w.insertAdjacentHTML("beforeend", `<span><span class="me">${esc(S.user.name)}</span> · ${esc(role())}</span>
+      <button class="btn sm" id="pw-btn">비밀번호 변경</button><button class="btn sm" id="logout-btn">로그아웃</button>`);
+    $("pw-btn").onclick = () => showAuth("change");
+    $("logout-btn").onclick = async () => { try { await api("POST", "api/logout"); } catch {} S.user = null; S.csrf = null; showAuth("login"); };
+  } else {
+    w.insertAdjacentHTML("beforeend", `<span class="pill muted">시연 모드</span><label for="d-role">역할</label>
+      <select id="d-role">${C.ROLES.map((r) => `<option ${r === role() ? "selected" : ""}>${r}</option>`).join("")}</select>
+      <label for="d-name">이름</label><input id="d-name" value="${esc(S.user.name)}" maxlength="20">
+      ${S.sharedDb ? `<label for="d-src">데이터</label><select id="d-src"><option value="snapshot" ${S.source === "snapshot" ? "selected" : ""}>시연 데이터</option><option value="shared" ${S.source === "shared" ? "selected" : ""}>공유 DB</option></select>` : ""}
+      ${S.source === "snapshot" ? `<button class="btn sm" id="d-reset">처음 상태로</button>` : ""}`);
+    if ($("d-src")) $("d-src").onchange = (e) => useSource(e.target.value, true);
+    if ($("d-reset")) $("d-reset").onclick = () => useSource("snapshot", true);
+    const save = () => { try { localStorage.setItem("demoUser", JSON.stringify(S.user)); } catch {} S.data = scope(S.raw); buildTabs(); renderAll(); };
+    $("d-role").onchange = (e) => { S.user.role = e.target.value; Object.assign(S.user, PERSONA[S.user.role] || {}); save(); toast(`${S.user.name}(${S.user.role}) 화면으로 바꿨습니다`); };
+    $("d-name").onchange = (e) => { S.user.name = e.target.value.trim() || "사용자"; save(); };
+  }
+}
+
+// 웹 시연: 역할을 바꾸면 그 역할의 시연 인물로 바뀜(담당자는 담당 인증서가 있는 사람)
+const PERSONA = { 관리자: { name: "김관리", email: "admin@example.co.kr" }, 담당자: { name: "김담당", email: "kim@example.co.kr" },
+  검토자: { name: "이검토", email: "rev@example.co.kr" }, 승인자: { name: "최승인", email: "apr@example.co.kr" }, 조회자: { name: "정조회", email: "view@example.co.kr" } };
+// ───────── 로그인·최초 설정·비밀번호 변경
+function showAuth(kind, msg) {
+  $("app").hidden = true; $("auth").hidden = false; renderWho();
+  const f = (id, lab, type = "text", extra = "") => `<label>${lab}<input class="f" id="${id}" type="${type}" ${extra} required></label>`;
+  const forms = {
+    setup: `<h2>최초 관리자 계정 만들기</h2><p class="note">처음 실행했습니다. 플랫폼 관리자 계정을 만드세요. 이후 사용자는 관리 탭에서 역할(담당자·검토자·승인자·조회자)과 함께 추가합니다.</p>
+      <form id="auth-form">${f("a-user", "아이디 (영문 소문자·숫자)", "text", 'autocomplete="username" pattern="[a-z0-9._-]{3,32}"')}${f("a-name", "이름")}
+      <label>이메일<input class="f" id="a-mail" type="email"></label>${f("a-pw", "비밀번호 (8자 이상, 영문+숫자)", "password", 'autocomplete="new-password" minlength="8"')}${f("a-pw2", "비밀번호 확인", "password", 'autocomplete="new-password"')}
+      <button class="btn primary" type="submit">관리자 만들기</button><p class="err" id="a-err"></p></form>`,
+    login: `<h2>로그인</h2><form id="auth-form">${f("a-user", "아이디", "text", 'autocomplete="username"')}${f("a-pw", "비밀번호", "password", 'autocomplete="current-password"')}
+      <button class="btn primary" type="submit">로그인</button><p class="err" id="a-err"></p></form>`,
+    change: `<h2>비밀번호 변경</h2><p class="note">${S.user?.must_change ? "관리자가 만든 임시 비밀번호입니다. 새 비밀번호로 바꾼 뒤 사용할 수 있습니다." : "새 비밀번호는 8자 이상, 영문과 숫자를 함께 사용하세요."}</p>
+      <form id="auth-form">${f("a-old", "현재 비밀번호", "password", 'autocomplete="current-password"')}${f("a-pw", "새 비밀번호", "password", 'autocomplete="new-password" minlength="8"')}${f("a-pw2", "새 비밀번호 확인", "password", 'autocomplete="new-password"')}
+      <div class="row"><button class="btn primary" type="submit">변경</button>${S.user?.must_change ? "" : `<button class="btn" type="button" id="a-cancel">취소</button>`}</div><p class="err" id="a-err"></p></form>`,
+  };
+  $("auth").innerHTML = `<div class="card auth">${forms[kind]}</div>`;
+  if (msg) $("a-err").textContent = msg;
+  $("a-cancel")?.addEventListener("click", startApp);
+  $("auth-form").onsubmit = async (e) => {
+    e.preventDefault(); $("a-err").textContent = "";
+    try {
+      if (kind !== "login" && $("a-pw").value !== $("a-pw2").value) throw new Error("비밀번호 확인이 일치하지 않습니다");
+      if (kind === "setup") {
+        await api("POST", "api/setup", { username: $("a-user").value, name: $("a-name").value, email: $("a-mail").value, password: $("a-pw").value });
+        S.health.setup_needed = false; toast("관리자 계정을 만들었습니다. 로그인하세요."); return showAuth("login");
+      }
+      if (kind === "login") {
+        const r = await api("POST", "api/login", { username: $("a-user").value, password: $("a-pw").value });
+        S.user = r.user; S.csrf = r.csrf;
+        return S.user.must_change ? showAuth("change") : startApp();
+      }
+      await api("POST", "api/password", { old: $("a-old").value, new: $("a-pw").value });
+      S.user.must_change = false; toast("비밀번호를 변경했습니다"); startApp();
+    } catch (err) { $("a-err").textContent = err.message; }
+  };
+  $("auth").querySelector("input")?.focus();
+}
+
+// ───────── 탭 (역할별)
+const TABS = [
+  ["dash", "대시보드", null], ["ledger", "관리대장", ["관리자", "검토자", "승인자", "조회자"]], ["disc", "수집 승인", ["관리자", "검토자", "승인자", "조회자"]],
+  ["certs", "인증서", null], ["vault", "PFX 비밀번호", ["관리자", "담당자"]], ["deploy", "배포", null], ["noti", "알림함", null], ["report", "보고서", null], ["qa", "QA 챗봇", null], ["hist", "이력", null], ["admin", "관리", ["관리자"]],
+];
+function buildTabs() {
+  const vis = TABS.filter(([, , r]) => !r || r.includes(role()));
+  if (!vis.some(([k]) => k === S.tab)) S.tab = "dash";
+  $("tabs").innerHTML = vis.map(([k, label]) => `<button role="tab" data-tab="${k}" aria-selected="${k === S.tab}">${label} <span class="badge" id="b-${k}"></span></button>`).join("");
+  $("tabs").querySelectorAll("button").forEach((b) => (b.onclick = () => select(b.dataset.tab)));
+  select(S.tab);
+}
+function select(tab) {
+  S.tab = tab;
+  document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  document.querySelectorAll("section[role=tabpanel]").forEach((p) => (p.hidden = p.id !== "p-" + tab));
+  if (tab === "qa") $("qa-engine").textContent = `발급기관별 갱신 가이드 ${S.guides.length}종과 등록 인증서 정보를 근거로 답합니다. 답변 엔진: ${S.llm ? "Claude" : "검색형(근거 문단 제시)"}`;
+}
+async function startApp() {
+  $("auth").hidden = true; $("app").hidden = false; renderWho(); buildTabs();
+  await load();
+  if (S.mode === "artifact" && S.canWrite && role() === "관리자") await runNotify(true);   // 웹 시연: 관리자 접속 시 알림 Agent 실행
+}
+
+// ───────── 렌더 공통
+const statusOf = (c) => C.statusOf(c.not_before, c.not_after);
+const pill = (s, cls = "s") => `<span class="pill ${cls}-${esc(String(s).replace(/\s+/g, "_"))}">${esc(s)}</span>`;
+const active = () => S.data.certificates.filter((c) => !c.replaced_by);
+const certById = (id) => S.data.certificates.find((c) => c.id === id);
+const dt = (iso) => esc(String(iso || "").slice(0, 16).replace("T", " "));
+// 표 머리글을 각 칸의 data-l 로 복사 (좁은 화면 카드 보기용)
+function labelTables(root) {
+  (root || document).querySelectorAll(".tbl table").forEach((t) => {
+    const hs = [...t.querySelectorAll("thead th")].map((th) => th.textContent.trim());
+    if (!hs.length) return;
+    t.querySelectorAll("tbody tr").forEach((tr) => { let i = 0; for (const td of tr.children) { const span = +td.getAttribute("colspan") || 1; if (span === 1 && hs[i]) td.setAttribute("data-l", hs[i]); i += span; } });
+  });
+}
+new MutationObserver(() => { clearTimeout(labelTables.t); labelTables.t = setTimeout(() => labelTables(document), 0); }).observe(document.getElementById("app") || document.body, { childList: true, subtree: true });
+const tbl = (heads, rows, empty, minw = 560) => rows.length ? `<div class="tbl"><table style="min-width:${minw}px"><thead><tr>${heads.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>` : `<p class="empty">${empty}</p>`;
+function renderAll() {
+  if (!S.user || $("app").hidden) return;
+  const set = (k, v) => { const b = $("b-" + k); if (b) b.textContent = v || ""; };
+  set("disc", S.data.discoveries.filter((d) => d.status === "대기").length);
+  set("noti", S.data.notifications.filter((n) => !n.read && !n.closed).length);
+  set("deploy", myDeployQueue().length);
+  rebuildIndex(); renderDash(); renderLedger(); renderDisc(); renderCerts(); renderDeploy(); renderNoti(); renderReport(); renderHist(); renderAdmin(); renderGuides(); renderVault();
+}
+function myDeployQueue() {
+  const me = S.user?.name;
+  return S.data.deployments.filter((d) => (d.status === "요청" && can("deploy.review") && nameOf(d.requested_by) !== me) ||
+    (d.status === "검토 통과" && can("deploy.approve") && ![nameOf(d.requested_by), nameOf(d.review?.reviewed_by)].includes(me)));
+}
+
+// ───────── 대시보드
+const urgency = (s) => ({ "D-7": 0, "D-30": 1, "만료": 2 }[s.status] ?? 3);
+function renderDash() {
+  const certs = active(), cnt = { 정상: 0, "D-30": 0, "D-7": 0, 만료: 0, "사용 전": 0 };
+  certs.forEach((c) => cnt[statusOf(c).status]++);
+  const pend = S.data.discoveries.filter((d) => d.status === "대기").length;
+  const unread = S.data.notifications.filter((n) => !n.read && !n.closed).length;
+  const urgent = certs.map((c) => ({ c, s: statusOf(c) })).filter((x) => ["D-7", "D-30", "만료"].includes(x.s.status) && x.c.renewal_status !== "완료")
+    .sort((a, b) => urgency(a.s) - urgency(b.s) || (a.s.status === "만료" ? b.s.days - a.s.days : a.s.days - b.s.days)).slice(0, 8);
+  const lastRun = [...S.data.scan_runs].sort((a, b) => String(b.started_at).localeCompare(a.started_at))[0];
+  const todo = [];
+  const q = myDeployQueue();
+  if (q.length) todo.push(`배포 ${role() === "검토자" ? "검토" : "승인"} 대기 <b>${q.length}</b>건 <button class="btn sm" data-go="deploy">배포 탭</button>`);
+  if (pend && can("discovery.decide")) todo.push(`수집 승인 대기 <b>${pend}</b>건 <button class="btn sm" data-go="disc">수집 승인</button>`);
+  if (role() === "담당자") {
+    const rej = S.data.deployments.filter((d) => d.status === "검토 반려").length;
+    if (urgent.length) todo.push(`조치가 필요한 담당 인증서 <b>${urgent.length}</b>건`);
+    if (rej) todo.push(`검토 반려된 배포 요청 <b>${rej}</b>건 <button class="btn sm" data-go="deploy">배포 탭</button>`);
+  }
+  if (role() !== "담당자" && urgent.length) {
+    const noAct = certs.filter((c) => ["D-7", "D-30", "만료"].includes(statusOf(c).status) && c.renewal_status === "미조치").length;
+    todo.push(`조치가 필요한 인증서 <b>${urgent.length}</b>건${noAct ? ` (그중 미조치 <b>${noAct}</b>건)` : ""} <button class="btn sm" data-tile="cert:${cnt["D-7"] ? "D-7" : cnt["D-30"] ? "D-30" : "만료"}">인증서 목록</button>`);
+  }
+  if (unread) todo.push(`미확인 알림 <b>${unread}</b>건 <button class="btn sm" data-go="noti">알림함</button>`);
+  $("p-dash").innerHTML = `
+    <div class="tiles">
+      <button class="tile acc" data-tile="cert:"><b>${certs.length}</b><span>${role() === "담당자" ? "내 담당 인증서" : "관리 중 인증서"} →</span></button>
+      <button class="tile crit" data-tile="cert:D-7"><b>${cnt["D-7"]}</b><span>D-7 (7일 이내) →</span></button>
+      <button class="tile warn" data-tile="cert:D-30"><b>${cnt["D-30"]}</b><span>D-30 (30일 이내) →</span></button>
+      <button class="tile crit" data-tile="cert:만료"><b>${cnt["만료"]}</b><span>만료 →</span></button>
+      <button class="tile acc" data-tile="${role() === "담당자" || !TABS.find((t) => t[0] === "disc")[2].includes(role()) ? "tab:deploy" : "tab:disc"}"><b>${role() === "담당자" ? S.data.deployments.filter((d) => d.status !== "배포 완료" && d.status !== "원복").length : pend}</b><span>${role() === "담당자" ? "진행 중 배포" : "승인 대기"} →</span></button>
+      <button class="tile warn" data-tile="tab:noti"><b>${unread}</b><span>미확인 알림 →</span></button>
+    </div>
+    <div class="card"><h2>내 할 일 · ${esc(S.user.name)} (${esc(role())})</h2>${todo.length ? `<ul style="margin:0;padding-left:18px">${todo.map((t) => `<li style="margin:4px 0">${t}</li>`).join("")}</ul>` : `<p class="note">지금 처리할 일이 없습니다.</p>`}</div>
+    <div class="split">
+      <div class="card"><h2>조치가 필요한 인증서</h2>
+        ${tbl(["인증서", "만료일", "남은 일수", "상태", "갱신", "담당자"], urgent.map(({ c, s }) => `<tr class="click" data-cert="${esc(c.id)}"><td>${esc(c.subject_cn)}<span class="sub">${esc(c.issuer_cn)}</span></td><td class="mono nw">${C.kstDate(c.not_after)}</td><td class="num">${s.days}</td><td class="nw">${pill(s.status)}</td><td class="nw">${esc(c.renewal_status)}</td><td class="nw">${esc(c.owner || "-")}</td></tr>`), "조치가 필요한 인증서가 없습니다.", 520)}
+      </div>
+      <div class="card"><h2>Agent 실행</h2>
+        ${S.mode === "server" ? `<p class="note">수집 Agent: 스캔 폴더 ${esc(S.health.scan_root || "미지정")}<br>` : `<p class="note">수집 Agent: 인증서 폴더를 고르면 이 브라우저 안에서 스캔·파싱해 결과를 <b>승인 대기</b>로 올립니다. 파일은 전송되지 않고, PFX 비밀번호는 보관함에 암호화해 둔 것을 씁니다.<br>`}
+        마지막 수집: ${lastRun ? `${dt(lastRun.started_at)} UTC · 파일 ${lastRun.files}개, 당시 승인 대기 등록 ${lastRun.new_pending}건, 실패 ${lastRun.failed}건 · 지금 승인 대기 ${pend}건` : "없음"}</p>
+        ${S.mode === "artifact" ? `<div class="row" style="margin-bottom:8px">
+          <button class="btn" id="wc-dir" ${can("collect.run") ? "" : "disabled"}>폴더 선택</button>
+          <button class="btn" id="wc-files" ${can("collect.run") ? "" : "disabled"}>파일 선택</button>
+          <button class="btn" id="wc-sample" ${can("collect.run") ? "" : "disabled"}>검증용 13개 파일</button>
+          <input type="file" id="wc-in-dir" webkitdirectory directory multiple hidden><input type="file" id="wc-in-files" multiple accept=".pem,.crt,.cer,.der,.pfx,.p12" hidden>
+        </div>
+        <p class="note" id="wc-sel">${S.wc && S.wc.files.length ? `<b>${esc(S.wc.root)}</b> · 대상 파일 ${S.wc.files.length}개${S.wc.excluded ? ` · 인증서 아님 제외 ${S.wc.excluded}개` : ""}` : "인증서 파일이 있는 폴더를 고르세요 (예: D:\\certs\\pem). 하위 폴더까지 읽습니다."}</p>` : ""}
+        <div class="row">
+          <button class="btn primary" id="run-collect" ${can("collect.run") && (S.mode === "server" || (S.wc && S.wc.files.length && !S.wc.busy)) ? "" : "disabled"}>수집 Agent 실행</button>
+          <button class="btn" id="run-notify" ${can("notify.run") ? "" : "disabled"}>알림 Agent 실행</button>
+        </div>
+        ${can("collect.run") ? `<div class="row" style="margin-top:8px">${vaultStatusHtml()}</div>` : `<p class="note">수집 Agent는 관리자만 실행할 수 있습니다.</p>`}
+        ${S.wc && S.wc.progress ? `<div style="margin-top:10px"><div style="height:6px;border-radius:6px;background:var(--bg);overflow:hidden"><i style="display:block;height:100%;width:${S.wc.progress.pct}%;background:var(--accent)"></i></div>
+          <p class="note" style="margin:4px 0">${esc(S.wc.progress.label)}</p>
+          <div class="tbl" style="max-height:220px;overflow-y:auto"><table style="min-width:420px"><tbody>${S.wc.progress.ev.map((e) => `<tr><td class="mono" style="padding:4px 8px">${esc(e.file)}</td><td style="padding:4px 8px">${e.ok ? `<span class="pill ${e.kind === "기존" ? "muted" : "ok"}">${esc(e.kind)}</span>` : `<span class="pill bad">실패</span>`}</td><td class="note" style="padding:4px 8px">${esc(e.text)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}
+        <p class="note" id="agent-out">${S.agentMsg || ""}</p>
+      </div>
+    </div>`;
+  $("run-collect").onclick = () => (S.mode === "server" ? runCollect() : webCollect());
+  if (S.mode === "artifact" && $("wc-dir")) {
+    $("wc-dir").onclick = () => $("wc-in-dir").click(); $("wc-files").onclick = () => $("wc-in-files").click(); $("wc-sample").onclick = wcSamples;
+    $("wc-in-dir").onchange = (e) => e.target.files.length && wcFromInput(e.target.files); $("wc-in-files").onchange = (e) => e.target.files.length && wcFromInput(e.target.files);
+    $("p-dash").querySelectorAll("[data-go-disc]").forEach((b) => (b.onclick = () => select("disc")));
+  }
+  $("run-notify").onclick = () => runNotify(false);
+  bindVaultStatus($("p-dash"));
+  $("p-dash").querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => select(b.dataset.go)));
+  $("p-dash").querySelectorAll("[data-tile]").forEach((b) => (b.onclick = () => {
+    const [k, v] = b.dataset.tile.split(":");
+    if (k === "cert") { Object.assign(S.certFilter, { status: v, q: "", issuer: "" }); S.selCert = null; select("certs"); renderCerts(); }
+    else select(v);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }));
+  bindCertLinks($("p-dash"));
+}
+async function runCollect() {
+  $("agent-out").textContent = "수집 중…";
+  try {
+    const r = await api("POST", "api/agent/collect", {});
+    S.agentMsg = `파일 ${r.files}개 스캔 → 승인 대기 ${r.new_pending}건(갱신본 ${r.renewal_candidates || 0}), 이미 관리 중 ${r.known}건, 실패 ${r.failed}건` + (r.skipped_rejected ? ` · 이전에 반려한 인증서 ${r.skipped_rejected}건 제외` : "") + (r.vault_used ? ` · 보관함 비밀번호로 연 PFX ${r.vault_used}개` : "") +
+      (r.errors.length ? ` · 실패: ${r.errors.map((e) => `${e.file}(${e.reason})`).join(", ")}` : "");
+    S.agentMsg = esc(S.agentMsg);
+    await load();
+  } catch (e) { S.agentMsg = esc(`수집 실패: ${e.message}`); renderDash(); }
+}
+// ───────── PFX 비밀번호 보관함
+// PC 서버: 서버가 AES-256-GCM 으로 암호화(키는 DB 와 분리된 키 파일) — 화면은 평문을 받아 보내기만 하고 다시 받지 않음
+// 웹 시연: 브라우저에서 RSA-OAEP-3072 공개키로 암호화해 저장. 복호화용 개인키는 '보관함 비밀번호'(PBKDF2 60만 회)로 감싸 저장 →
+//          수집 Agent 를 실행하는 관리자만 보관함 비밀번호로 열 수 있고, 연 키는 이 탭의 메모리에만(10분 뒤 자동 잠금)
+const VC = {
+  te: new TextEncoder(), td: new TextDecoder(),
+  b64: (u) => btoa(String.fromCharCode(...new Uint8Array(u))),
+  unb64: (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)),
+  ITER: 600000, PRIV_AAD: "cert-platform/vault-private-key",
+  async wrapKey(pass, salt) {
+    const base = await crypto.subtle.importKey("raw", VC.te.encode(pass), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: VC.ITER, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  },
+  async create(pass) {
+    const kp = await crypto.subtle.generateKey({ name: "RSA-OAEP", modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }, true, ["encrypt", "decrypt"]);
+    const spki = await crypto.subtle.exportKey("spki", kp.publicKey), pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", kp.privateKey));
+    const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    const wrapped = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: VC.te.encode(VC.PRIV_AAD) }, await VC.wrapKey(pass, salt), pkcs8);
+    pkcs8.fill(0);
+    const kid = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", spki))).slice(0, 6).map((b) => b.toString(16).padStart(2, "0")).join("");
+    return { alg: "RSA-OAEP-3072/SHA-256", wrap: "PBKDF2-SHA256 600000 + AES-256-GCM", kid, pub: VC.b64(spki), salt: VC.b64(salt), iv: VC.b64(iv), wrapped: VC.b64(wrapped) };
+  },
+  async unlock(cfg, pass) {
+    let pkcs8;
+    try { pkcs8 = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: VC.unb64(cfg.iv), additionalData: VC.te.encode(VC.PRIV_AAD) }, await VC.wrapKey(pass, VC.unb64(cfg.salt)), VC.unb64(cfg.wrapped))); }
+    catch { throw new Error("보관함 비밀번호가 맞지 않습니다"); }
+    const key = await crypto.subtle.importKey("pkcs8", pkcs8, { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]);   // 다시 꺼낼 수 없는 키로
+    pkcs8.fill(0); return key;
+  },
+  async enc(cfg, sid, pw) {
+    const pub = await crypto.subtle.importKey("spki", VC.unb64(cfg.pub), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
+    const ct = await crypto.subtle.encrypt({ name: "RSA-OAEP", label: VC.te.encode("pfx-secret/" + sid) }, pub, VC.te.encode(pw));
+    return { alg: cfg.alg, kid: cfg.kid, ct: VC.b64(ct) };
+  },
+  async dec(key, sid, enc) {
+    return VC.td.decode(await crypto.subtle.decrypt({ name: "RSA-OAEP", label: VC.te.encode("pfx-secret/" + sid) }, key, VC.unb64(enc.ct)));
+  },
+};
+S.vault = { items: [], needs: [], cfg: null, key: null, edit: null, del: null, prefill: null };
+async function loadVault() {
+  const V = S.vault;
+  if (!C.can(role(), "secret.manage")) { V.items = []; V.needs = []; return; }
+  if (S.mode === "server") {
+    try { const r = await api("GET", "api/secrets"); Object.assign(V, { items: r.items, needs: r.needs, alg: r.alg, kid: r.kid, key_source: r.key_source, lastRunAt: r.last_run_at }); } catch { V.items = []; }
+    return;
+  }
+  try { const snap = await S.db.collection("secrets").get(); V.all = snap.docs.map((d) => ({ ...d.data(), id: d.id })).filter((x) => !x.deleted); } catch { V.all = []; }
+  try { const st = await S.db.collection("settings").get(); V.cfg = st.docs.map((d) => ({ ...d.data(), id: d.id })).find((d) => d.id === "vault") || null; } catch { V.cfg = null; }
+  if (V.cfg && V.key && V.keyKid !== V.cfg.kid) lockVault();
+  V.items = role() === "관리자" ? V.all : V.all.filter((x) => x.owner === S.user.name);
+  const run = [...(S.raw.scan_runs || [])].sort((a, b) => String(b.started_at).localeCompare(a.started_at))[0];
+  V.needs = (run?.errors || []).filter((e) => /^비밀번호/.test(e.reason)); V.lastRunAt = run?.started_at;
+}
+function lockVault() { S.vault.key = null; S.vault.keyKid = null; clearTimeout(S.vault.timer); }
+async function unlockVault(pass) {
+  const V = S.vault; V.key = await VC.unlock(V.cfg, pass); V.keyKid = V.cfg.kid;
+  clearTimeout(V.timer); V.timer = setTimeout(() => { lockVault(); renderDash(); toast("보관함을 자동으로 잠갔습니다 (10분)"); }, 10 * 60 * 1000);
+}
+async function auditW(action, detail) {
+  await S.db.collection("audit").doc("a_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6)).set({ at: nowIso(), actor: actor(), action, detail });
+}
+function vaultStatusHtml() {
+  const V = S.vault, n = S.mode === "server" ? V.items.length : (V.all || []).length;
+  if (S.mode === "server") return `<span class="note">PFX 비밀번호: 보관함 ${n}개를 서버에서 복호화해 사용 · <a href="#" data-go-vault>보관함</a></span>`;
+  if (!V.cfg || !n) return `<span class="note">PFX 비밀번호는 <a href="#" data-go-vault>PFX 비밀번호</a> 탭에서 등록합니다${V.cfg ? "" : " (보관함 미생성)"}</span>`;
+  if (V.key) return `<span class="pill ok">보관함 열림</span><span class="note">등록 ${n}개 · 10분 뒤 자동 잠금</span><button class="btn sm" id="vault-lock">잠그기</button>`;
+  return `<input class="f" id="vault-pass" type="password" placeholder="보관함 비밀번호" autocomplete="off" style="width:170px" aria-label="보관함 비밀번호"><button class="btn" id="vault-unlock">보관함 열기</button><span class="note">등록 ${n}개 · 잠김</span>`;
+}
+function bindVaultStatus(root) {
+  root.querySelectorAll("[data-go-vault]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); select("vault"); }));
+  if ($("vault-lock")) $("vault-lock").onclick = () => { lockVault(); renderDash(); };
+  if ($("vault-unlock")) {
+    const go = async () => {
+      const b = $("vault-unlock"); b.disabled = true; b.textContent = "여는 중…";
+      try { await unlockVault($("vault-pass").value); toast("보관함을 열었습니다"); } catch (e) { toast(e.message); }
+      renderDash();
+    };
+    $("vault-unlock").onclick = go; $("vault-pass").onkeydown = (e) => { if (e.key === "Enter") go(); };
+  }
+}
+function renderVault() {
+  const P = $("p-vault"); if (!P) return;
+  if (!C.can(role(), "secret.manage")) { P.innerHTML = `<div class="card"><p class="empty">PFX 비밀번호 관리는 관리자·담당자만 할 수 있습니다.</p></div>`; return; }
+  const V = S.vault, admin = role() === "관리자", server = S.mode === "server";
+  const writable = server || S.canWrite;
+  const enc = server ? `AES-256-GCM · 키 파일은 DB와 분리${V.key_source ? ` (${esc(V.key_source)})` : ""}` : `${esc(V.cfg?.alg || "RSA-OAEP-3072")} · 개인키는 보관함 비밀번호로 암호화(PBKDF2 60만 회)`;
+  const pf = V.prefill || {};
+  const creating = !server && !V.cfg;
+  P.innerHTML = `<div class="card"><h2>PFX 비밀번호 보관함</h2>
+    <p class="note">담당자가 입력한 PFX 비밀번호는 암호화해 보관하고, 수집 Agent가 PFX 파일을 열 때만 메모리에서 복호화해 씁니다. 저장된 비밀번호는 관리자를 포함해 누구도 다시 볼 수 없고 <b>교체·삭제</b>만 할 수 있습니다. 등록·교체·삭제는 이력에 남고 비밀번호 값은 기록하지 않습니다.</p>
+    <div class="row" style="margin:6px 0 4px"><span class="pill ok">암호화 ${enc}</span><span class="pill muted">${admin ? "전체" : "내가 등록한"} ${V.items.length}개</span>${server ? "" : !V.cfg ? `<span class="pill warn">보관함 없음</span>` : V.key ? `<span class="pill ok">보관함 열림</span>` : `<span class="pill muted">보관함 잠김(수집할 때 대시보드에서 엶)</span>`}</div>
+  </div>
+  ${creating ? `<div class="card"><h2>보관함 만들기</h2>${admin && writable ? `
+    <p class="note">보관함 비밀번호는 수집 Agent를 실행할 때 보관함을 여는 데만 쓰며 어디에도 저장되지 않습니다. 잃어버리면 보관함을 새로 만들고 PFX 비밀번호를 다시 등록해야 합니다.</p>
+    <form id="vc-form" class="row"><input class="f" id="vc-p1" type="password" placeholder="보관함 비밀번호 (10자 이상)" minlength="10" required autocomplete="new-password" style="width:220px" aria-label="보관함 비밀번호">
+    <input class="f" id="vc-p2" type="password" placeholder="보관함 비밀번호 확인" required autocomplete="new-password" style="width:200px" aria-label="보관함 비밀번호 확인"><button class="btn primary" id="vc-go">보관함 만들기</button></form><p class="err" id="vc-err"></p>`
+    : `<p class="empty">관리자가 보관함을 만들면 PFX 비밀번호를 등록할 수 있습니다.</p>`}</div>` : ""}
+  ${V.needs.length ? `<div class="card"><h2>비밀번호가 필요한 파일 <span class="note">(마지막 수집 기준)</span></h2>
+    ${tbl(["파일", "사유", ""], V.needs.map((e, i) => { const reg = C.vaultCandidates(server ? V.items.map((x) => ({ ...x, enc: 1 })) : V.all || [], e.file).filter((x) => !e.reason.includes("불일치") || Date.parse(x.updated_at || x.created_at) > Date.parse(V.lastRunAt || 0));
+      return `<tr><td class="mono">${esc(e.file)}</td><td class="note">${esc(e.reason.replace(/\s*—.*$/, ""))}</td><td class="nw">${reg.length ? `<span class="pill ok">등록됨 · 다음 수집 때 사용</span>` : creating || !writable ? "" : `<button class="btn sm" data-vneed="${i}">이 파일로 등록</button>`}</td></tr>`; }), "", 480)}</div>` : ""}
+  ${creating ? "" : `<div class="card"><h2>비밀번호 등록</h2>${writable ? `
+    <form id="vs-form" autocomplete="off">
+      <div class="row" style="margin-bottom:8px">
+        <label class="note">적용 범위 <select class="f" id="vs-scope" aria-label="적용 범위"><option value="file" ${pf.scope !== "folder" && pf.scope !== "all" ? "selected" : ""}>파일 1개</option><option value="folder" ${pf.scope === "folder" ? "selected" : ""}>폴더(하위 포함)</option>${admin ? `<option value="all" ${pf.scope === "all" ? "selected" : ""}>전체 PFX</option>` : ""}</select></label>
+        <input class="f mono" id="vs-path" placeholder="스캔 폴더 기준 경로 예: 검증/pay-d7.pfx" value="${esc(pf.value || "")}" style="width:280px" aria-label="파일 또는 폴더 경로">
+        <input class="f" id="vs-label" placeholder="이름(선택) 예: 결제 서버 PFX" value="${esc(pf.label || "")}" maxlength="60" style="width:180px" aria-label="이름">
+      </div>
+      <div class="row"><input class="f" id="vs-p1" type="password" placeholder="PFX 비밀번호" required autocomplete="new-password" style="width:180px" aria-label="PFX 비밀번호">
+        <input class="f" id="vs-p2" type="password" placeholder="비밀번호 확인" required autocomplete="new-password" style="width:160px" aria-label="PFX 비밀번호 확인">
+        <button class="btn primary" id="vs-go">암호화해 저장</button></div>
+      <p class="err" id="vs-err"></p></form>` : `<p class="empty">읽기 전용 보기에서는 등록할 수 없습니다.</p>`}</div>
+  <div class="card"><h2>등록된 비밀번호</h2>
+    ${tbl(["이름", "적용 범위", "등록자", "등록·교체", "최근 사용", "사용", ""], V.items.map((x) => `<tr><td>${esc(x.label)}<span class="sub mono">${esc(x.id)}</span></td><td class="mono">${esc(C.scopeText(x))}</td><td class="nw">${esc(x.created_by)}</td>
+      <td class="nw mono">${dt(x.updated_at || x.created_at)}</td><td class="nw">${x.last_used_at ? `${dt(x.last_used_at)}<span class="sub mono">${esc(x.last_used_file || "")}</span>` : `<span class="note">아직 없음</span>`}</td><td class="num">${x.use_count || 0}</td>
+      <td class="nw">${writable ? (V.edit === x.id ? `<input class="f" id="vr-pw" type="password" placeholder="새 비밀번호" autocomplete="new-password" style="width:130px" aria-label="새 비밀번호"><button class="btn sm primary" data-vsave="${esc(x.id)}">저장</button><button class="btn sm" data-vcancel>취소</button>`
+        : `<button class="btn sm" data-vedit="${esc(x.id)}">교체</button><button class="btn sm ${V.del === x.id ? "danger" : ""}" data-vdel="${esc(x.id)}">${V.del === x.id ? "삭제 확인" : "삭제"}</button>`) : ""}</td></tr>`), "등록된 비밀번호가 없습니다.", 760)}
+  </div>`}`;
+  if ($("vc-form")) $("vc-form").onsubmit = async (e) => {
+    e.preventDefault(); const p1 = $("vc-p1").value, p2 = $("vc-p2").value;
+    if (p1.length < 10) return ($("vc-err").textContent = "10자 이상 입력하세요");
+    if (p1 !== p2) return ($("vc-err").textContent = "두 비밀번호가 다릅니다");
+    $("vc-go").disabled = true; $("vc-go").textContent = "만드는 중…";
+    try {
+      const cfg = await VC.create(p1);
+      await S.db.collection("settings").doc("vault").set({ ...cfg, created_by: actor(), created_at: nowIso() });
+      await auditW("보관함 생성", `${cfg.alg} · 키 ${cfg.kid}`);
+      V.cfg = { ...cfg, id: "vault" }; await unlockVault(p1); toast("보관함을 만들었습니다");
+    } catch (er) { $("vc-err").textContent = er.message; }
+    await load();
+  };
+  P.querySelectorAll("[data-vneed]").forEach((b) => (b.onclick = () => { const n = V.needs[+b.dataset.vneed]; V.prefill = { scope: "file", value: n.file, label: n.file.split("/").pop() }; renderVault(); $("vs-p1").focus(); }));
+  if ($("vs-form")) $("vs-form").onsubmit = async (e) => {
+    e.preventDefault(); const err = $("vs-err"); err.textContent = "";
+    const scope = $("vs-scope").value, p1 = $("vs-p1").value, p2 = $("vs-p2").value;
+    try {
+      if (!p1 || p1.length > 256) throw new Error("비밀번호를 1~256자로 입력하세요");
+      if (p1 !== p2) throw new Error("두 비밀번호가 다릅니다");
+      const value = scope === "all" ? "" : C.normRel($("vs-path").value);
+      if (scope !== "all" && !value) throw new Error("적용할 폴더 또는 파일 경로를 입력하세요");
+      if (scope === "file" && !/\.(pfx|p12)$/i.test(value)) throw new Error("파일 범위는 .pfx 또는 .p12 파일이어야 합니다");
+      const label = $("vs-label").value.trim().slice(0, 60);
+      $("vs-go").disabled = true;
+      if (server) await api("POST", "api/secrets", { scope, scope_value: value, label, password: p1 });
+      else {
+        const sid = "s_" + Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join("");
+        const doc = { label: label || value || "전체 PFX", scope, scope_value: value, owner: S.user.name, created_by: actor(), created_at: nowIso(), use_count: 0, active: true, enc: await VC.enc(V.cfg, sid, p1) };
+        await S.db.collection("secrets").doc(sid).set(doc);
+        await auditW("PFX 비밀번호 등록", `${doc.label} · ${C.scopeText(doc)} (암호화 보관)`);
+      }
+      $("vs-p1").value = $("vs-p2").value = ""; V.prefill = null; toast("암호화해 저장했습니다");
+      await load();
+    } catch (er) { err.textContent = er.message; if ($("vs-go")) $("vs-go").disabled = false; }
+  };
+  P.querySelectorAll("[data-vedit]").forEach((b) => (b.onclick = () => { V.edit = b.dataset.vedit; V.del = null; renderVault(); $("vr-pw").focus(); }));
+  P.querySelectorAll("[data-vcancel]").forEach((b) => (b.onclick = () => { V.edit = null; renderVault(); }));
+  P.querySelectorAll("[data-vsave]").forEach((b) => (b.onclick = async () => {
+    const pw = $("vr-pw").value, id = b.dataset.vsave, x = V.items.find((i) => i.id === id);
+    if (!pw) return toast("새 비밀번호를 입력하세요");
+    try {
+      if (server) await api("POST", `api/secrets/${encodeURIComponent(id)}/replace`, { password: pw });
+      else { await S.db.collection("secrets").doc(id).update({ enc: await VC.enc(V.cfg, id, pw), updated_at: nowIso(), last_result: null }); await auditW("PFX 비밀번호 교체", `${x.label} · ${C.scopeText(x)}`); }
+      V.edit = null; toast("비밀번호를 교체했습니다"); await load();
+    } catch (er) { toast(er.message); }
+  }));
+  P.querySelectorAll("[data-vdel]").forEach((b) => (b.onclick = async () => {
+    const id = b.dataset.vdel, x = V.items.find((i) => i.id === id);
+    if (V.del !== id) { V.del = id; V.edit = null; return renderVault(); }
+    try {
+      if (server) await api("POST", `api/secrets/${encodeURIComponent(id)}/delete`, {});
+      else {   // 암호문을 지운 기록만 남김(문서 삭제 대신 덮어쓰기)
+        await S.db.collection("secrets").doc(id).set({ deleted: true, deleted_at: nowIso(), deleted_by: actor(), label: x.label, scope: x.scope, scope_value: x.scope_value, owner: x.owner });
+        await auditW("PFX 비밀번호 삭제", `${x.label} · ${C.scopeText(x)}`);
+      }
+      V.del = null; toast("삭제했습니다"); await load();
+    } catch (er) { toast(er.message); }
+  }));
+}
+// 웹 수집 Agent 에서 PFX 열기: 비밀번호 없이 → 보관함(범위가 맞는 것)에서 하나씩 복호화해 시도
+async function webOpen(rel, bytes, res) {
+  if (!/\.(pfx|p12)$/i.test(rel)) return CertScanner.parseFile(rel, bytes, []);
+  try { return await CertScanner.parseFile(rel, bytes, []); } catch (e) { if (!/비밀번호 필요/.test(e.message)) throw e; }
+  const cands = C.vaultCandidates(S.vault.all || [], rel);
+  if (!cands.length) throw new Error("비밀번호 필요 — 'PFX 비밀번호' 탭에서 등록하세요");
+  if (!S.vault.key) throw new Error(`보관함 잠김 — 보관함을 연 뒤 다시 실행하세요 (등록 ${cands.length}개)`);
+  for (const sec of cands) {
+    let pw;
+    try { pw = await VC.dec(S.vault.key, sec.id, sec.enc); } catch { res.vault_errors++; continue; }
+    try {
+      const recs = await CertScanner.parseFile(rel, bytes, [pw]); pw = null;
+      const at = nowIso();
+      await S.db.collection("secrets").doc(sec.id).update({ last_used_at: at, last_used_file: rel, use_count: (sec.use_count || 0) + 1, last_result: "성공" });
+      sec.last_used_at = at; sec.use_count = (sec.use_count || 0) + 1; res.vault_used++;
+      return recs;
+    } catch (e) { pw = null; if (!/비밀번호 필요/.test(e.message)) throw e; }
+  }
+  throw new Error(`비밀번호 불일치 (보관함 ${cands.length}개 시도)`);
+}
+// ───────── 웹 수집 Agent: 브라우저에서 스캔·파싱 → 승인 대기 등록 (PC 서버의 agents.collect 와 같은 규칙)
+function wcSet(list, root) {
+  const all = list.filter((f) => f.rel);
+  const files = all.filter((f) => CertScanner.isTarget(f.rel)).sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  S.wc = { files, excluded: all.length - files.length, root, busy: false, progress: null }; renderDash();
+}
+function wcFromInput(fl) {
+  const arr = Array.from(fl), root = arr[0]?.webkitRelativePath ? arr[0].webkitRelativePath.split("/")[0] : "선택한 파일";
+  wcSet(arr.map((f) => ({ rel: f.webkitRelativePath ? f.webkitRelativePath.split("/").slice(1).join("/") : f.name, read: async () => new Uint8Array(await f.arrayBuffer()) })), root);
+}
+async function wcSamples() {
+  try { if (!S.samples) S.samples = await (await fetch("samples.json")).json(); }
+  catch { return toast("검증용 파일을 불러오지 못했습니다"); }
+  const dec = (b) => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+  wcSet(S.samples.map((x) => ({ rel: x.rel, read: async () => dec(x.b64) })), "pem (검증용 13개 파일)");
+}
+const isoUtc = (t) => t.replace(" ", "T") + "+00:00";
+async function webCollect() {
+  if (!can("collect.run")) return toast("수집 Agent는 관리자만 실행할 수 있습니다");
+  const W = S.wc; if (!W || !W.files.length || W.busy) return;
+  W.busy = true; const started = nowIso();
+  const certs = S.raw.certificates, byFp = new Map(certs.filter((c) => c.fingerprint).map((c) => [c.fingerprint, c]));
+  const discs = new Map(S.raw.discoveries.filter((d) => d.status === "대기").map((d) => [d.fingerprint, d]));
+  const rejected = new Set(S.raw.discoveries.filter((d) => d.status === "반려").map((d) => d.fingerprint));
+  const res = { files: 0, new_pending: 0, known: 0, failed: 0, renewal_candidates: 0, errors: [], vault_used: 0, vault_errors: 0 };
+  W.progress = { pct: 0, label: "수집 중…", ev: [] }; S.agentMsg = ""; renderDash();
+  for (const f of W.files) {
+    res.files++;
+    try {
+      const recs = await webOpen(f.rel, await f.read(), res);
+      for (const r of recs) {
+        const fp = r.sha256_fingerprint;
+        if (byFp.has(fp)) {                                   // 이미 관리 중 → 저장 위치만 추가
+          const c = byFp.get(fp); if (!(c.locations || []).includes(f.rel)) { c.locations = [...(c.locations || []), f.rel]; await S.db.collection("certificates").doc(c.id).update({ locations: c.locations }); }
+          res.known++; W.progress.ev.push({ file: f.rel, ok: true, kind: "기존", text: `이미 관리 중 · ${r.subject_cn}` }); continue;
+        }
+        if (discs.has(fp)) {                                  // 승인 대기 중 → 위치만 추가
+          const d = discs.get(fp); if (!d.locations.includes(f.rel)) { d.locations = [...d.locations, f.rel]; await S.db.collection("discoveries").doc(d.id).update({ locations: d.locations }); }
+          res.known++; W.progress.ev.push({ file: f.rel, ok: true, kind: "기존", text: `승인 대기 중 · 위치 추가 · ${r.subject_cn}` }); continue;
+        }
+        if (rejected.has(fp)) { res.skipped_rejected = (res.skipped_rejected || 0) + 1; W.progress.ev.push({ file: f.rel, ok: true, kind: "기존", text: `이전에 반려한 인증서 · 제외 · ${r.subject_cn}` }); continue; }
+        const rec = { ...r, not_before: isoUtc(r.not_before), not_after: isoUtc(r.not_after) };
+        const prev = certs.filter((x) => x.fingerprint && !x.replaced_by && x.subject_cn === rec.subject_cn && Date.parse(x.not_after) < Date.parse(rec.not_after)).sort((a, b) => Date.parse(b.not_after) - Date.parse(a.not_after));
+        const newer = certs.some((x) => x.fingerprint && !x.replaced_by && String(x.subject_cn).toLowerCase() === String(rec.subject_cn).toLowerCase() && Date.parse(x.not_after) >= Date.parse(rec.not_after));
+        const kind = prev.length ? "갱신본" : newer ? "이전 버전" : "신규"; if (prev.length) res.renewal_candidates++;
+        const id = "d_" + fp.replace(/:/g, "").slice(0, 16).toLowerCase();
+        const doc = { fingerprint: fp, subject_cn: rec.subject_cn, subject_dn: rec.subject_dn, issuer_cn: rec.issuer_cn, issuer_dn: rec.issuer_dn, not_before: rec.not_before, not_after: rec.not_after,
+          serial_number: rec.serial_number, version: rec.version, public_key: rec.public_key, signature_algorithm: rec.signature_algorithm, cert_type: rec.cert_type, san: rec.san,
+          locations: [f.rel], kind, match_cert_id: prev[0] ? prev[0].id : null, status: "대기", scanned_at: started, folder: W.root };
+        await S.db.collection("discoveries").doc(id).set(doc); discs.set(fp, { ...doc, id });
+        res.new_pending++; W.progress.ev.push({ file: f.rel, ok: true, kind: "승인 대기", text: `${kind} · ${rec.subject_cn} · 만료 ${C.kstDate(rec.not_after)}` });
+      }
+    } catch (e) { res.failed++; res.errors.push({ file: f.rel, reason: e.message }); W.progress.ev.push({ file: f.rel, ok: false, text: e.message }); }
+    W.progress.pct = Math.round(res.files / W.files.length * 100); W.progress.label = `처리 ${res.files}/${W.files.length}개 · 승인 대기 ${res.new_pending}건 · 기존 ${res.known}건 · 실패 ${res.failed}건`;
+    renderDash(); await new Promise((r) => setTimeout(r, 120));
+  }
+  const runId = "run_" + started.replace(/\D/g, "").slice(0, 14);
+  await S.db.collection("scan_runs").doc(runId).set({ started_at: started, folder: W.root, ...res, by: actor(), engine: "웹 수집 Agent" });
+  await S.db.collection("audit").doc("a_" + runId).set({ at: started, actor: actor(), action: "수집 실행", detail: `파일 ${res.files}개, 승인 대기 ${res.new_pending}건, 실패 ${res.failed}건 (웹)` });
+  W.busy = false; W.progress.label = "완료 · " + W.progress.label;
+  S.agentMsg = `파일 ${res.files}개 스캔 → 승인 대기 ${res.new_pending}건(갱신본 ${res.renewal_candidates}), 이미 관리 중 ${res.known}건, 실패 ${res.failed}건` + (res.skipped_rejected ? ` · 이전에 반려한 인증서 ${res.skipped_rejected}건 제외` : "") + (res.vault_used ? ` · 보관함 비밀번호로 연 PFX ${res.vault_used}개` : "") +
+    (res.new_pending ? ` · <button class="btn sm" data-go-disc>수집 승인으로 이동</button>` : "");
+  toast(`수집 완료: 승인 대기 ${res.new_pending}건`);
+  await load();
+}
+async function runNotify(silent) {
+  try {
+    let created;
+    if (S.mode === "server") created = (await api("POST", "api/agent/notify")).created;
+    else {
+      const ops = C.notifyOps(S.raw.certificates, S.raw.notifications, Date.now(), nowIso());
+      for (const o of ops) await S.db.collection(o.coll).doc(o.id).set(o.data);
+      created = ops.length;
+      if (created) await S.db.collection("audit").doc("a_" + Date.now()).set({ at: nowIso(), actor: "알림 Agent", action: "알림 생성", detail: `${created}건` });
+    }
+    if (!silent || created) toast(`알림 Agent: 새 알림 ${created}건`);
+    await load();
+  } catch (e) { if (!silent) toast(`알림 실행 실패: ${e.message}`); }
+}
+
+// ───────── 관리대장 (기존 엑셀 등록·대조) — SC-001
+function renderLedger() {
+  if (!$("p-ledger") || !TABS.find(([k]) => k === "ledger")[2].includes(role())) { $("p-ledger").innerHTML = ""; return; }
+  const rc = C.reconcile(S.data.certificates, S.data.discoveries), pv = S.importPreview;
+  const order = ["불일치", "미수집", "신규", "갱신본", "이전 버전", "일치", "확인 완료"];
+  const rows = [...rc.rows].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
+  const runs = [...S.data.import_runs].sort((a, b) => String(b.at).localeCompare(a.at)).slice(0, 5);
+  $("p-ledger").innerHTML = `
+    <div class="card"><h2>기존 관리대장(엑셀) 등록</h2>
+      <p class="note">엑셀로 관리하던 인증서 관리정보(인증서명·발급기관·만료일·관리담당자 필수, 이메일·업무시스템·일련번호·갱신상태 선택)를 올리면 형식을 검증한 뒤 플랫폼에 등록합니다. 등록된 건은 수집 Agent 결과와 자동으로 대조됩니다.</p>
+      <div class="row">
+        <input type="file" id="xl-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ${can("import.excel") ? "" : "disabled"} aria-label="관리대장 엑셀 파일">
+        <button class="btn" id="xl-tpl">양식 내려받기</button>
+        ${can("import.excel") ? "" : `<span class="note">등록은 관리자만 할 수 있습니다.</span>`}
+      </div>
+      ${pv ? `<h3>검증 결과 · ${esc(pv.file)}</h3>
+        <p>${pill(`정상 ${pv.records.length}건`, "x")} ${pv.errors.length ? `<span class="pill bad">오류 ${pv.errors.length}건</span>` : `<span class="pill ok">오류 없음</span>`}</p>
+        ${pv.errors.length ? tbl(["행", "항목", "오류 내용"], pv.errors.map((e) => `<tr><td class="num">${e.row}</td><td class="nw">${esc(e.col)}</td><td>${esc(e.msg)}</td></tr>`), "", 480) : ""}
+        ${pv.records.length ? `<details style="margin-top:8px"><summary class="note">등록할 ${pv.records.length}건 미리 보기</summary>${tbl(["행", "인증서명", "발급기관", "만료일", "담당자", "이메일", "업무"], pv.records.slice(0, 50).map((r) => `<tr><td class="num">${r.row}</td><td>${esc(r.subject_cn)}</td><td>${esc(r.issuer_cn)}</td><td class="mono">${C.kstDate(r.not_after)}</td><td>${esc(r.owner)}</td><td>${esc(r.owner_email)}</td><td>${esc(r.system)}</td></tr>`), "")}</details>` : ""}
+        <div class="row" style="margin-top:10px"><button class="btn primary" id="xl-commit" ${pv.records.length && can("import.excel") ? "" : "disabled"}>검증된 ${pv.records.length}건 등록</button><button class="btn" id="xl-cancel">취소</button>
+        ${pv.errors.length ? `<span class="note">오류 행은 등록하지 않습니다. 엑셀을 고쳐 다시 올리면 됩니다.</span>` : ""}</div>` : ""}
+      ${runs.length ? `<h3>등록 이력</h3>${tbl(["등록 시각(UTC)", "파일", "등록자", "건수", "신규", "관리정보 갱신"], runs.map((r) => `<tr><td class="mono">${dt(r.at)}</td><td>${esc(r.file)}</td><td>${esc(r.by)}</td><td class="num">${r.total}</td><td class="num">${r.created}</td><td class="num">${r.updated}</td></tr>`), "")}` : ""}
+    </div>
+    <div class="card"><h2>관리대장 ↔ 수집 결과 대조</h2>
+      <p class="note">승인 대기 중인 수집 결과를 관리대장과 비교합니다. <b>일치</b>·<b>불일치</b>는 승인하면 수집된 메타정보로 대장 값을 갱신하고(담당자·업무는 대장 값 유지), <b>미수집</b>은 대장에는 있으나 스캔 폴더에서 찾지 못한 인증서입니다. 승인 전에는 기존 관리정보가 바뀌지 않습니다.</p>
+      <div class="chips" style="margin-bottom:8px">${order.map((k) => `<span class="pill k-${esc(k.replace(/\s+/g, "_"))}">${k} ${rc.count[k] || 0}</span>`).join("")}</div>
+      ${tbl(["대조 결과", "인증서명", "관리대장", "수집 결과", "차이 (대장 → 수집)", ""], rows.map((r) => {
+        const c = r.cert, d = r.disc;
+        return `<tr><td>${pill(r.status, "k")}</td><td>${esc((d || c).subject_cn)}<span class="sub mono">${esc((d || c).serial_number || "")}</span></td>
+          <td>${c && c.registered_from === "관리대장" ? `${esc(c.owner || "-")} · ${esc(c.system || "-")}<span class="sub">만료 ${c.not_after ? C.kstDate(c.not_after) : "-"}</span>` : `<span class="note">대장에 없음</span>`}</td>
+          <td>${d ? `만료 ${C.kstDate(d.not_after)}<span class="sub">${(d.locations || []).map(esc).join(", ")}</span>` : c && c.fingerprint ? `<span class="note">수집·승인 완료</span><span class="sub">${(c.locations || []).map(esc).join(", ")}</span>` : `<span class="note">스캔 폴더에서 찾지 못함</span>`}</td>
+          <td>${(r.diffs || []).map((x) => `${esc(x.label)}: <span class="mono">${esc(x.before)}</span> → <span class="mono">${esc(x.after)}</span>`).join("<br>") || "-"}</td>
+          <td>${d ? `<button class="btn sm" data-go="disc">승인 화면</button>` : c ? `<button class="btn sm" data-cert="${esc(c.id)}">인증서</button>` : ""}</td></tr>`; }), "관리대장 등록 건과 승인 대기 수집 결과가 없습니다.", 820)}
+    </div>`;
+  $("xl-file").onchange = onExcel;
+  $("xl-tpl").onclick = downloadTemplate;
+  if ($("xl-commit")) $("xl-commit").onclick = commitImport;
+  if ($("xl-cancel")) $("xl-cancel").onclick = () => { S.importPreview = null; renderLedger(); };
+  $("p-ledger").querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => select(b.dataset.go)));
+  bindCertLinks($("p-ledger"));
+}
+async function onExcel(e) {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    if (f.size > 5 * 1024 * 1024) throw new Error("5MB 이하 파일만 올릴 수 있습니다");
+    const rows = await X.read(await f.arrayBuffer());
+    const v = C.validateImport(rows);
+    S.importPreview = { file: f.name, ...v };
+    renderLedger();
+  } catch (err) { S.importPreview = null; renderLedger(); toast(`엑셀을 읽지 못했습니다: ${err.message}`); }
+}
+async function commitImport() {
+  const pv = S.importPreview; if (!pv) return;
+  try {
+    const all = S.mode === "server" ? S.data.certificates : S.raw.certificates;
+    const { ops, created, updated } = C.importOps(pv.records, all, actor(), nowIso(), pv.file);
+    await act("import.excel", ops, `${pv.file}: 신규 ${created}건, 관리정보 갱신 ${updated}건, 오류 제외 ${pv.errors.length}건`);
+    toast(`관리대장 등록: 신규 ${created}건, 관리정보 갱신 ${updated}건`);
+    S.importPreview = null; await load();
+  } catch (err) { toast(`등록 실패: ${err.message}`); }
+}
+async function downloadTemplate() {
+  const rows = [C.IMPORT_COLUMNS.map((c) => c.label), ["pay.example.co.kr", "DigiCert Global G2 TLS RSA SHA256 2020 CA1", "2026-12-31", "박결제", "pay@example.co.kr", "결제", "", "미조치"]];
+  await saveFile("인증서_관리대장_양식.xlsx", X.write([{ name: "관리대장", rows, widths: [28, 34, 12, 12, 24, 14, 22, 10] }]));
+}
+async function saveFile(filename, data) {
+  if (S.mode === "artifact" && S.downloads) {
+    try { await S.downloads.save({ filename, data: data instanceof Uint8Array ? data : String(data) }); toast("파일을 저장했습니다"); }
+    catch (e) { if (e.code !== "declined") toast(`저장하지 못했습니다 (${e.code || e.message})`); }
+    return;
+  }
+  const blob = new Blob([data], { type: filename.endsWith(".csv") ? "text/csv;charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+// ───────── 수집 승인
+function renderDisc() {
+  const pendRaw = S.data.discoveries.filter((d) => d.status === "대기");
+  const pend = pendRaw.map((d) => ({ d, cls: C.classifyDiscovery(d, S.data.certificates, pendRaw) }))
+    .sort((a, b) => String(a.d.not_after).localeCompare(b.d.not_after));
+  const done = S.data.discoveries.filter((d) => d.status !== "대기").sort((a, b) => String(b.decided_at).localeCompare(a.decided_at)).slice(0, 15);
+  const owners = [...new Set(S.data.certificates.map((c) => c.owner).filter(Boolean))];
+  $("p-disc").innerHTML = `
+    <div class="card"><h2>승인 대기 ${pend.length}건</h2>
+      <p class="note">수집 Agent가 찾은 인증서입니다. 승인해야 인증서 목록에 반영됩니다. 구분: <b>일치·불일치</b>(관리대장 등록 건과 대조) · <b>갱신본</b>(같은 이름의 기존 인증서보다 만료일이 늦음, 승인 시 기존 인증서 갱신 완료) · <b>이전 버전</b>(이미 더 최신 인증서를 관리 중 — 승인하면 중복이 되므로 반려 후 파일 정리) · <b>신규</b>.
+      ${can("discovery.decide") ? "" : can("discovery.review") ? " 검토자는 검토 의견을 남기고, 승인·반려는 승인자가 합니다." : " <b>승인·반려는 승인자·관리자만 할 수 있습니다.</b>"}</p>
+      ${tbl(["구분", "인증서", "발급기관", "유효기간", "상태", "저장 위치", "검토", "담당자 / 업무", ""], pend.map(({ d, cls }) => {
+        const s = C.statusOf(d.not_before, d.not_after); const ref = cls.match && certById(cls.match);
+        const old = cls.kind === "이전 버전";
+        return `<tr><td>${pill(cls.kind, "k")}${cls.kind === "갱신본" && ref ? `<span class="sub">기존 만료 ${C.kstDate(ref.not_after)}</span>` : ""}${old ? `<span class="sub">${ref ? `관리 중인 최신본 만료 ${C.kstDate(ref.not_after)}` : `같은 이름의 더 최신 파일이 함께 수집됨`} · 반려 권장</span>` : ""}${cls.diffs.map((x) => `<span class="sub">${esc(x.label)} ${esc(x.before)} → ${esc(x.after)}</span>`).join("")}</td>
+        <td>${esc(d.subject_cn)}<span class="sub mono">${esc(d.serial_number)}</span></td><td>${esc(d.issuer_cn)}</td>
+        <td class="mono">${C.kstDate(d.not_before)}<br>~ ${C.kstDate(d.not_after)}</td><td>${pill(s.status)}</td>
+        <td>${(d.locations || []).map(esc).join("<br>")}</td>
+        <td>${d.review_status ? `<span class="pill ${d.review_status === "적합" ? "ok" : "bad"}">${esc(d.review_status)}</span><span class="sub">${esc(nameOf(d.reviewed_by))} ${esc(d.review_note || "")}</span>` : can("discovery.review") ? `<div class="row"><button class="btn sm" data-rv="${esc(d.id)}" data-v="적합">적합</button><button class="btn sm danger" data-rv="${esc(d.id)}" data-v="부적합">부적합</button></div>` : `<span class="note">미검토</span>`}</td>
+        <td><input class="f" data-owner="${esc(d.id)}" placeholder="담당자" value="${esc(ref?.owner || "")}" list="owners" style="width:90px" ${can("discovery.decide") ? "" : "disabled"}> <input class="f" data-sys="${esc(d.id)}" placeholder="업무시스템" value="${esc(ref?.system || "")}" style="width:100px" ${can("discovery.decide") ? "" : "disabled"}></td>
+        <td><div class="row"><button class="btn primary sm" data-approve="${esc(d.id)}" ${can("discovery.decide") && !old ? "" : "disabled"} ${old ? 'title="이전 버전은 승인할 수 없습니다"' : ""}>승인</button><button class="btn danger sm" data-reject="${esc(d.id)}" ${can("discovery.decide") ? "" : "disabled"}>반려</button></div></td></tr>`; }),
+        `승인 대기 중인 인증서가 없습니다.${S.mode === "server" ? " 대시보드에서 수집 Agent를 실행해 보세요." : ""}`, 980)}
+      <datalist id="owners">${owners.map((o) => `<option value="${esc(o)}">`).join("")}</datalist>
+    </div>
+    <div class="card"><h2>최근 처리</h2>
+      ${tbl(["결과", "구분", "인증서", "처리자", "처리 시각(UTC)"], done.map((d) => `<tr><td>${esc(d.status)}</td><td>${d.kind ? pill(d.kind, "k") : ""}</td><td>${esc(d.subject_cn)}</td><td>${esc(d.decided_by || "")}</td><td class="mono">${dt(d.decided_at)}</td></tr>`), "처리 이력이 없습니다.")}
+    </div>`;
+  $("p-disc").querySelectorAll("[data-approve]").forEach((b) => (b.onclick = () => decide(b.dataset.approve, true)));
+  $("p-disc").querySelectorAll("[data-reject]").forEach((b) => (b.onclick = () => decide(b.dataset.reject, false)));
+  $("p-disc").querySelectorAll("[data-rv]").forEach((b) => (b.onclick = async () => {
+    const d = S.data.discoveries.find((x) => x.id === b.dataset.rv);
+    try { await act("discovery.review", [{ op: "update", coll: "discoveries", id: d.id, data: { review_status: b.dataset.v, review_note: "", reviewed_by: actor(), reviewed_at: nowIso() } }], `${d.subject_cn}: ${b.dataset.v}`);
+      toast(`검토 의견 '${b.dataset.v}'을 남겼습니다`); await load(); } catch (e) { toast(`실패: ${e.message}`); }
+  }));
+}
+async function decide(id, ok) {
+  const d = S.data.discoveries.find((x) => x.id === id);
+  try {
+    if (!ok) {
+      await act("discovery.decide", [{ op: "update", coll: "discoveries", id, data: { status: "반려", decided_by: actor(), decided_at: nowIso() } }], `반려: ${d.subject_cn} (${d.serial_number})`);
+      toast("반려했습니다");
+    } else {
+      const owner = document.querySelector(`[data-owner="${id}"]`)?.value.trim() || "";
+      const system = document.querySelector(`[data-sys="${id}"]`)?.value.trim() || "";
+      const { kind, ops } = C.approveOps(d, S.data.certificates, actor(), nowIso(), { owner, system }, S.data.discoveries.filter((x) => x.status === "대기"));
+      await act("discovery.decide", ops, `승인: ${d.subject_cn} · ${kind}${owner ? ` · 담당 ${owner}` : ""}`);
+      toast({ 갱신본: "승인했습니다. 기존 인증서를 갱신 완료로 바꿨습니다", 기존: "이미 등록된 인증서입니다", 일치: "승인했습니다. 관리대장 건에 수집 정보를 연결했습니다",
+        불일치: "승인했습니다. 수집된 값으로 관리대장 정보를 갱신했습니다" }[kind] || "승인했습니다. 인증서 목록에 추가됐습니다");
+    }
+    await load();
+  } catch (e) { toast(`처리 실패: ${e.message}`); }
+}
+
+// ───────── 인증서
+function stagesHtml(c) {
+  return `<div class="stages">${C.deployState(c, S.data.deployments).map((s) => { const st = s.dep?.status;
+    const cls = st === "배포 완료" ? "done" : st === "요청" || st === "검토 통과" ? "wip" : st === "검토 반려" || st === "원복" ? "bad" : "";
+    return `<span class="stage ${cls}" title="${esc(st || "미배포")}">${s.name}${st && st !== "배포 완료" ? `·${esc(st)}` : ""}</span>`; }).join("")}</div>`;
+}
+function renderCerts() {
+  const f = S.certFilter;
+  const issuers = [...new Set(active().map((c) => c.issuer_cn))].sort();
+  const rows = active().map((c) => ({ c, s: statusOf(c) })).filter(({ c, s }) => {
+    if (f.status && s.status !== f.status) return false;
+    if (f.issuer && c.issuer_cn !== f.issuer) return false;
+    if (f.q) { const q = f.q.toLowerCase(); if (![c.subject_cn, c.san, c.serial_number, c.owner, c.system, ...(c.locations || [])].some((v) => String(v || "").toLowerCase().includes(q))) return false; }
+    return true;
+  }).sort((a, b) => a.s.days - b.s.days);
+  const sel = certById(S.selCert);
+  $("p-certs").innerHTML = `
+    <div class="card"><div class="row">
+      <input class="f grow" id="cf-q" placeholder="인증서명·도메인·일련번호·담당자·저장 위치" value="${esc(f.q)}" aria-label="검색어">
+      <select class="f" id="cf-issuer" aria-label="발급기관"><option value="">발급기관 전체</option>${issuers.map((i) => `<option ${i === f.issuer ? "selected" : ""}>${esc(i)}</option>`).join("")}</select>
+      <select class="f" id="cf-status" aria-label="상태"><option value="">상태 전체</option>${["D-7", "D-30", "만료", "정상", "사용 전"].map((s) => `<option ${s === f.status ? "selected" : ""}>${s}</option>`).join("")}</select>
+    </div>${role() === "담당자" ? `<p class="note" style="margin:8px 0 0">본인(${esc(S.user.name)})이 담당하는 인증서만 표시합니다.</p>` : ""}</div>
+    <div class="split">
+      <div class="card tbl"><table style="min-width:600px"><thead><tr><th>인증서</th><th>만료일</th><th class="num">남은 일수</th><th>상태</th><th>갱신</th><th>배포</th><th>담당자</th></tr></thead><tbody>
+        ${rows.map(({ c, s }) => `<tr class="click ${c.id === S.selCert ? "sel" : ""}" data-cert="${esc(c.id)}" tabindex="0"><td>${esc(c.subject_cn)}<span class="sub">${esc(c.issuer_cn)}${c.fingerprint ? "" : " · 대장만 등록"}</span></td><td class="mono nw">${c.not_after ? C.kstDate(c.not_after) : "-"}</td><td class="num">${s.days}</td><td class="nw">${pill(s.status)}</td><td class="nw">${esc(c.renewal_status)}</td><td>${stagesHtml(c)}</td><td class="nw">${esc(c.owner || "-")}</td></tr>`).join("") || `<tr><td colspan="7" class="empty">조건에 맞는 인증서가 없습니다.</td></tr>`}
+      </tbody></table></div>
+      <div class="card" id="cert-detail">${sel ? certDetail(sel) : `<p class="empty">목록에서 인증서를 고르면 상세 정보와 갱신·배포 처리 화면이 나옵니다.</p>`}</div>
+    </div>`;
+  $("cf-q").oninput = (e) => { f.q = e.target.value; clearTimeout(renderCerts.t); renderCerts.t = setTimeout(() => { renderCerts(); $("cf-q").focus(); $("cf-q").setSelectionRange(f.q.length, f.q.length); }, 250); };
+  $("cf-issuer").onchange = (e) => { f.issuer = e.target.value; renderCerts(); };
+  $("cf-status").onchange = (e) => { f.status = e.target.value; renderCerts(); };
+  bindCertLinks($("p-certs"));
+  if (sel) bindDetail(sel);
+}
+const mineOk = (action, c) => can(action) && (role() !== "담당자" || C.isOwner(S.user, c));
+function certDetail(c) {
+  const s = statusOf(c);
+  const hist = S.data.renewals.filter((r) => r.old_cert_id === c.id || r.new_cert_id === c.id);
+  const notis = S.data.notifications.filter((n) => n.cert_id === c.id);
+  const next = C.STAGES.find((st) => C.deployState(c, S.data.deployments).find((x) => x.code === st.code).dep?.status !== "배포 완료");
+  let req = next ? C.canRequestStage(c, next.code, S.data.deployments) : { ok: false, why: "4단계 배포를 모두 마쳤습니다" };
+  // 요청 전 사전 검사: 검토자 자동 검증과 같은 항목 — 통과하지 못하면 요청 단계에서 막고 이유를 보여 줌
+  const pre = req.ok ? C.deployChecks(c, S.data.certificates, S.data.environments, next.code) : [];
+  const preBad = pre.filter((x) => !x.ok);
+  if (req.ok && preBad.length) req = { ok: false, why: `검토 자동 검증을 통과하지 못해 요청할 수 없습니다: ${preBad.map((x) => `${x.item}(${x.detail})`).join(", ")}${statusOf(c).status === "만료" || statusOf(c).days <= 30 ? " — 갱신본을 받아 수집·승인한 뒤 갱신본으로 배포하세요" : ""}` };
+  return `<h2>${esc(c.subject_cn)} ${pill(s.status)}</h2>
+    <dl class="kv">
+      <dt>발급기관</dt><dd>${esc(c.issuer_cn)}</dd>
+      <dt>유효기간</dt><dd class="mono">${c.not_before ? C.kstDate(c.not_before) : "?"} ~ ${c.not_after ? C.kstDate(c.not_after) : "?"} (남은 ${s.days}일)</dd>
+      <dt>일련번호</dt><dd class="mono">${esc(c.serial_number || "-")}</dd>
+      <dt>도메인(SAN)</dt><dd>${esc(c.san || "-")}</dd>
+      <dt>공개키</dt><dd>${esc(c.public_key || "-")} · ${esc(c.signature_algorithm || "-")}</dd>
+      <dt>저장 위치</dt><dd>${(c.locations || []).map(esc).join("<br>") || "-"}</dd>
+      <dt>등록 경로</dt><dd>${esc(c.source || "수집")}${c.registry_diffs?.length ? ` · 대장 차이 ${c.registry_diffs.map((x) => `${esc(x.label)} ${esc(x.before)}→${esc(x.after)}`).join(", ")}` : ""}</dd>
+      <dt>승인</dt><dd>${esc(c.approved_by || "-")} · ${esc(String(c.approved_at || "").slice(0, 10))}</dd>
+      <dt>SHA-256</dt><dd class="mono" style="font-size:11px">${esc(c.fingerprint || "수집 전 (관리대장 등록 건)")}</dd>
+    </dl>
+    <h3>관리 정보</h3>
+    <div class="row">
+      <label class="note" for="d-owner">담당자</label><input class="f" id="d-owner" value="${esc(c.owner || "")}" style="width:96px" ${can("cert.manage") ? "" : "disabled"}>
+      <label class="note" for="d-mail">이메일</label><input class="f" id="d-mail" value="${esc(c.owner_email || "")}" style="width:170px" ${can("cert.manage") ? "" : "disabled"}>
+      <label class="note" for="d-sys">업무</label><input class="f" id="d-sys" value="${esc(c.system || "")}" style="width:100px" ${can("cert.manage") ? "" : "disabled"}>
+      <button class="btn" id="d-save" ${can("cert.manage") ? "" : "disabled"}>저장</button>
+    </div>
+    <h3>갱신 처리</h3>
+    ${c.replaced_by ? `<p class="note">갱신본으로 교체된 인증서입니다.</p>` : `
+    <div class="row"><label class="note" for="d-rs">갱신 상태</label>
+      <select class="f" id="d-rs" ${mineOk("cert.renewal", c) ? "" : "disabled"}>${C.RENEWAL_STATES.map((x) => `<option ${x === c.renewal_status ? "selected" : ""}>${x}</option>`).join("")}</select></div>
+    <div class="row" style="margin-top:8px">
+      <label class="note" for="d-newexp">신규 만료일</label><input class="f" type="date" id="d-newexp" ${mineOk("cert.renewal", c) ? "" : "disabled"}>
+      <input class="f grow" id="d-note" placeholder="처리 내용 (예: DigiCert 재발급)" ${mineOk("cert.renewal", c) ? "" : "disabled"}>
+      <button class="btn primary" id="d-renew" ${mineOk("cert.renewal", c) ? "" : "disabled"}>갱신 결과 등록</button>
+    </div>
+    <p class="note">갱신 파일을 지정 폴더에 두면 수집 Agent가 갱신본으로 찾아 승인 대기로 올립니다. 승인된 갱신본은 아래 4단계 배포로 반영합니다.</p>`}
+    <h3>배포 (개발 → 테스트 → 교육 → 운영)</h3>
+    ${stagesHtml(c)}
+    <div class="row" style="margin-top:8px">
+      <input class="f grow" id="d-depnote" placeholder="배포 요청 메모 (예: 개발 서버 nginx 반영)" ${req.ok && mineOk("deploy.request", c) ? "" : "disabled"}>
+      <button class="btn primary" id="d-deploy" ${req.ok && mineOk("deploy.request", c) ? "" : "disabled"}>${next ? `${next.name} 배포 요청` : "배포 완료"}</button>
+    </div>
+    ${pre.length && !preBad.length ? `<p class="note">요청 전 사전 검사 ${pre.length}항목 통과: ${pre.map((x) => esc(x.item)).join(" · ")}</p>` : ""}
+    ${req.ok ? "" : `<p class="note"${preBad.length ? ' style="color:var(--crit)"' : ""}>${esc(req.why)}</p>`}
+    <h3>갱신 이력 · 알림</h3>
+    ${hist.map((r) => `<p class="note">${esc(String(r.renewed_at).slice(0, 10))} · ${C.kstDate(r.old_not_after)} → ${C.kstDate(r.new_not_after)} · ${esc(r.handled_by)} · ${esc(r.note)}</p>`).join("") || `<p class="note">갱신 이력 없음</p>`}
+    ${notis.map((n) => `<p class="note">${pill(n.level)} ${esc(String(n.created_at).slice(0, 10))} ${n.closed ? "· 종료" : n.read ? "· 확인" : "· 미확인"}${n.mail_status ? ` · 메일 ${esc(n.mail_status)}` : ""}</p>`).join("")}`;
+}
+function bindDetail(c) {
+  const save = $("d-save");
+  if (save) save.onclick = async () => {
+    try { await act("cert.manage", [{ op: "update", coll: "certificates", id: c.id, data: { owner: $("d-owner").value.trim(), owner_email: $("d-mail").value.trim(), system: $("d-sys").value.trim() } }], `${c.subject_cn} → 담당 ${$("d-owner").value.trim()}`);
+      toast("저장했습니다"); await load(); } catch (e) { toast(`저장 실패: ${e.message}`); }
+  };
+  const rs = $("d-rs");
+  if (rs) rs.onchange = async () => {
+    try { const ops = [{ op: "update", coll: "certificates", id: c.id, data: { renewal_status: rs.value } }];
+      if (rs.value === "완료") ops.push({ op: "closeAlerts", cert_id: c.id });
+      await act("cert.renewal", ops, `${c.subject_cn}: ${c.renewal_status} → ${rs.value}`); toast("갱신 상태를 바꿨습니다"); await load(); } catch (e) { toast(`변경 실패: ${e.message}`); }
+  };
+  const btn = $("d-renew");
+  if (btn) btn.onclick = async () => {
+    const d = $("d-newexp").value, note = $("d-note").value.trim();
+    if (!d) return toast("신규 만료일을 입력하세요");
+    if (c.not_after && Date.parse(d) <= Date.parse(C.kstDate(c.not_after))) return toast("신규 만료일은 기존 만료일보다 늦어야 합니다");
+    try {
+      await act("cert.renewal", [
+        { op: "set", coll: "renewals", id: "r_" + c.id + "_" + Date.now(), data: { old_cert_id: c.id, new_cert_id: null, subject_cn: c.subject_cn,
+          old_not_after: c.not_after, new_not_after: d + "T00:00:00+09:00", renewed_at: nowIso(), handled_by: actor(), note: note || "수동 등록" } },
+        { op: "update", coll: "certificates", id: c.id, data: { renewal_status: "완료", renewed_at: nowIso() } },
+        { op: "closeAlerts", cert_id: c.id }], `${c.subject_cn} 신규 만료일 ${d}`);
+      toast("갱신 결과를 등록하고 알림을 종료했습니다"); await load();
+    } catch (e) { toast(`등록 실패: ${e.message}`); }
+  };
+  const dep = $("d-deploy");
+  if (dep) dep.onclick = async () => {
+    const next = C.STAGES.find((st) => C.deployState(c, S.data.deployments).find((x) => x.code === st.code).dep?.status !== "배포 완료");
+    try { await act("deploy.request", C.requestDeployOps(c, next.code, actor(), nowIso(), $("d-depnote").value.trim()), `${c.subject_cn} → ${next.name}`);
+      toast(`${next.name} 배포를 요청했습니다. 검토자가 검증합니다.`); await load(); } catch (e) { toast(`요청 실패: ${e.message}`); }
+  };
+}
+function bindCertLinks(root) {
+  root.querySelectorAll("[data-cert]").forEach((tr) => {
+    const go = () => { S.selCert = tr.dataset.cert; select("certs"); renderCerts();
+      if (window.innerWidth < 900) $("cert-detail")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+    tr.onclick = go; tr.onkeydown = (e) => { if (e.key === "Enter") go(); };
+  });
+}
+
+// ───────── 배포 (4단계 승인·원복)
+function renderDeploy() {
+  const me = S.user?.name, deps = S.data.deployments;
+  const certsWith = active().filter((c) => c.fingerprint);
+  const reviewQ = deps.filter((d) => d.status === "요청"), approveQ = deps.filter((d) => d.status === "검토 통과");
+  const envs = [...S.data.environments].sort((a, b) => C.STAGES.findIndex((s) => s.code === a.stage) - C.STAGES.findIndex((s) => s.code === b.stage) || String(a.subject_cn).localeCompare(b.subject_cn));
+  const recent = [...deps].sort((a, b) => String(b.approved_at || b.review?.reviewed_at || b.requested_at).localeCompare(String(a.approved_at || a.review?.reviewed_at || a.requested_at))).slice(0, 20);
+  $("p-deploy").innerHTML = `
+    <div class="card"><h2>배포 현황</h2>
+      <p class="note">인증서 교체는 개발 → 테스트 → 교육 → 운영 순서로 진행합니다. 단계마다 <b>담당자 요청 → 검토자 자동 검증·검토 → 승인자 승인</b> 후 해당 환경에 반영되고, 문제가 생기면 승인자가 직전 배포본으로 원복합니다. 요청자·검토자·승인자는 서로 다른 사람이어야 합니다.</p>
+      ${tbl(["인증서", "만료일", ...C.STAGES.map((s) => s.name), "담당자"], certsWith.map((c) => `<tr class="click" data-cert="${esc(c.id)}"><td>${esc(c.subject_cn)}<span class="sub">${esc(c.issuer_cn)}</span></td><td class="mono nw">${C.kstDate(c.not_after)}</td>${C.deployState(c, deps).map((s) => `<td>${s.dep ? pill(s.dep.status, "d") : `<span class="note">-</span>`}</td>`).join("")}<td>${esc(c.owner || "-")}</td></tr>`), "배포 대상 인증서가 없습니다.", 760)}
+      <p class="note">배포 요청은 인증서 탭의 상세 화면에서 합니다.</p>
+    </div>
+    <div class="cols2">
+      <div class="card"><h2>검토 대기 ${reviewQ.length}건</h2>
+        ${reviewQ.map((d) => { const c = certById(d.cert_id); if (!c) return "";
+          const checks = C.deployChecks(c, S.data.certificates, S.data.environments, d.stage, Date.now()); const allOk = checks.every((x) => x.ok);
+          const mine = nameOf(d.requested_by) === me, ok = can("deploy.review") && !mine;
+          return `<div class="card" style="padding:12px;margin-bottom:10px"><div class="row"><b class="grow">${esc(d.subject_cn)} → ${esc(d.stage_name)}</b>${pill(d.status, "d")}</div>
+            <p class="note" style="margin:4px 0">요청 ${esc(d.requested_by)} · ${dt(d.requested_at)}${d.note ? ` · ${esc(d.note)}` : ""}</p>
+            <table style="min-width:0"><tbody>${checks.map((x) => `<tr><td class="${x.ok ? "check-ok" : "check-bad"}" style="width:28px">${x.ok ? "✓" : "✗"}</td><td>${esc(x.item)}</td><td class="note">${esc(x.detail)}</td></tr>`).join("")}</tbody></table>
+            <div class="row" style="margin-top:8px"><input class="f grow" data-rvnote="${esc(d.id)}" placeholder="검토 의견" ${ok ? "" : "disabled"}>
+              <button class="btn primary sm" data-rvpass="${esc(d.id)}" ${ok && allOk ? "" : "disabled"}>검토 통과</button><button class="btn danger sm" data-rvfail="${esc(d.id)}" ${ok ? "" : "disabled"}>반려</button></div>
+            ${mine ? `<p class="note">본인이 요청한 건은 검토할 수 없습니다.</p>` : !allOk ? `<p class="note">검증 항목이 통과하지 않아 반려만 할 수 있습니다.</p>` : ""}</div>`; }).join("") || `<p class="empty">검토할 배포 요청이 없습니다.</p>`}
+      </div>
+      <div class="card"><h2>승인 대기 ${approveQ.length}건</h2>
+        ${approveQ.map((d) => { const blocked = [nameOf(d.requested_by), nameOf(d.review?.reviewed_by)].includes(me), ok = can("deploy.approve") && !blocked;
+          return `<div class="card" style="padding:12px;margin-bottom:10px"><div class="row"><b class="grow">${esc(d.subject_cn)} → ${esc(d.stage_name)}</b>${pill(d.status, "d")}</div>
+            <p class="note" style="margin:4px 0">요청 ${esc(d.requested_by)} · 검토 ${esc(d.review?.reviewed_by)} (${d.review?.checks?.filter((x) => x.ok).length}/${d.review?.checks?.length} 통과)${d.review?.comment ? ` · ${esc(d.review.comment)}` : ""}</p>
+            <div class="row"><button class="btn primary sm" data-approve-dep="${esc(d.id)}" ${ok ? "" : "disabled"}>승인 후 ${esc(d.stage_name)} 반영</button></div>
+            ${blocked ? `<p class="note">요청자·검토자는 승인할 수 없습니다.</p>` : ""}</div>`; }).join("") || `<p class="empty">승인할 배포가 없습니다.</p>`}
+      </div>
+    </div>
+    <div class="card"><h2>환경별 현재 배포본</h2>
+      ${tbl(["단계", "인증서명", "현재 배포본", "직전 배포본", "서버 적용", "최근 처리", ""], envs.map((e) => { const cur = certById(e.cert_id), prev = certById(e.prev_cert_id), last = (e.history || []).slice(-1)[0];
+        const dep = S.data.deployments.find((d) => d.id === C.depId(e.cert_id, e.stage));
+        const okRb = can("deploy.rollback") && e.prev_cert_id && dep && dep.status === "배포 완료";
+        return `<tr><td class="nw">${esc(e.stage_name)}</td><td>${esc(e.subject_cn)}</td><td class="mono">${cur ? `만료 ${C.kstDate(cur.not_after)}` : e.cert_id ? esc(e.cert_id) : "없음"}</td><td class="mono">${prev ? `만료 ${C.kstDate(prev.not_after)}` : "-"}</td>
+          <td>${Object.entries(e.applied || {}).map(([h, a]) => `<div title="${esc(a.detail || "")}">${a.ok && a.cert_id === e.cert_id ? `<span class="pill ok">${esc(h)} 적용</span>` : a.failed_cert_id === e.cert_id ? `<span class="pill bad">${esc(h)} 실패·원복</span>` : `<span class="pill warn">${esc(h)} 대기</span>`}<span class="sub">${dt(a.at)}</span></div>`).join("") || `<span class="note">-</span>`}</td>
+          <td class="note">${last ? `${esc(last.action)} · ${esc(last.by)} · ${dt(last.at)}` : ""}</td>
+          <td>${okRb ? `<div class="row"><input class="f" data-rbreason="${esc(dep.id)}" placeholder="원복 사유" style="width:130px" aria-label="원복 사유"><button class="btn danger sm" data-rollback="${esc(dep.id)}">직전 배포본으로 원복</button></div>` : ""}</td></tr>`; }), "아직 배포된 환경이 없습니다.", 820)}
+    </div>
+    <div class="card"><h2>배포 이력</h2>
+      ${tbl(["단계", "인증서명", "상태", "요청", "검토", "승인·원복"], recent.map((d) => `<tr><td>${esc(d.stage_name)}</td><td>${esc(d.subject_cn)}</td><td>${pill(d.status, "d")}</td><td class="note">${esc(d.requested_by)}<span class="sub">${dt(d.requested_at)}</span></td><td class="note">${esc(d.review?.reviewed_by || "-")}<span class="sub">${esc(d.review?.comment || "")}</span></td><td class="note">${esc(d.rolled_back_by || d.approved_by || "-")}<span class="sub">${esc(d.rollback_reason || "")}</span></td></tr>`), "배포 이력이 없습니다.", 760)}
+    </div>`;
+  bindCertLinks($("p-deploy"));
+  const P = $("p-deploy");
+  const review = async (id, pass) => {
+    const d = deps.find((x) => x.id === id), c = certById(d.cert_id);
+    const checks = C.deployChecks(c, S.data.certificates, S.data.environments, d.stage, Date.now());
+    try { await act("deploy.review", C.reviewDeployOps(d, checks, pass, actor(), nowIso(), P.querySelector(`[data-rvnote="${id}"]`).value.trim()), `${d.subject_cn} ${d.stage_name}: ${pass ? "검토 통과" : "반려"}`);
+      toast(pass ? "검토를 통과시켰습니다. 승인자가 승인하면 반영됩니다." : "반려했습니다"); await load(); } catch (e) { toast(`실패: ${e.message}`); }
+  };
+  P.querySelectorAll("[data-rvpass]").forEach((b) => (b.onclick = () => review(b.dataset.rvpass, true)));
+  P.querySelectorAll("[data-rvfail]").forEach((b) => (b.onclick = () => review(b.dataset.rvfail, false)));
+  P.querySelectorAll("[data-approve-dep]").forEach((b) => (b.onclick = async () => {
+    const d = deps.find((x) => x.id === b.dataset.approveDep);
+    try { const r = await act("deploy.approve", C.approveDeployOps(d, S.data.environments, actor(), nowIso(), S.data.certificates), `${d.subject_cn} → ${d.stage_name} 반영`);
+      toast(`${d.stage_name} 환경에 반영했습니다${r.deployed?.file ? ` (${r.deployed.file})` : ""}`); await load(); } catch (e) { toast(`승인 실패: ${e.message}`); }
+  }));
+  P.querySelectorAll("[data-rollback]").forEach((b) => (b.onclick = async () => {
+    const d = deps.find((x) => x.id === b.dataset.rollback);
+    const reason = P.querySelector(`[data-rbreason="${b.dataset.rollback}"]`).value.trim();
+    if (!reason) return toast("원복 사유를 입력하세요");
+    const r = C.rollbackOps(d, S.data.environments, actor(), nowIso(), reason);
+    if (!r.ok) return toast(r.why);
+    try { await act("deploy.rollback", r.ops, `${d.subject_cn} ${d.stage_name} 원복: ${reason}`); toast("직전 배포본으로 원복했습니다"); await load(); } catch (e) { toast(`원복 실패: ${e.message}`); }
+  }));
+}
+
+// ───────── 알림함
+function renderNoti() {
+  const list = [...S.data.notifications].sort((a, b) => (a.closed - b.closed) || (b.rank - a.rank) || String(b.created_at).localeCompare(a.created_at));
+  const mailOk = S.mode === "server" && can("mail.send") && S.health.smtp;
+  const unsent = list.filter((n) => !n.closed && n.mail_status !== "발송");
+  $("p-noti").innerHTML = `<div class="card"><h2>알림함 ${role() === "담당자" ? `(${esc(S.user.name)} 담당)` : "(전체)"}</h2>
+    <p class="note">알림 Agent가 D-30·D-7·만료 시점에 단계별로 한 번씩 만듭니다. 갱신을 완료하면 해당 인증서의 알림이 종료됩니다. ${S.mode === "server" ? (S.health.smtp ? "SMTP 설정이 되어 있어 담당자 이메일로 발송할 수 있습니다." : "SMTP를 설정하면(관리 탭) 담당자 이메일로 발송할 수 있습니다.") : "웹 시연에서는 이메일 초안만 만듭니다."}</p>
+    ${mailOk ? `<div class="row"><button class="btn primary" id="mail-all" ${unsent.length ? "" : "disabled"}>미발송 알림 ${unsent.length}건 이메일 발송</button></div>` : ""}
+    ${list.map((n) => `<div class="card" style="margin-top:10px;padding:12px">
+      <div class="row"><span class="grow">${pill(n.level)} <b>${esc(n.title)}</b></span>
+        <span class="note">${dt(n.created_at)} · ${n.closed ? "종료" : n.read ? "확인함" : "미확인"}${n.mail_status ? ` · 메일 ${esc(n.mail_status)}${n.mail_to ? ` (${esc(n.mail_to)})` : ""}` : S.mode === "server" ? "" : " · 이메일 초안"}</span></div>
+      <p style="margin:6px 0">${esc(n.body)}</p>${n.mail_error ? `<p class="note" style="color:var(--crit)">발송 실패: ${esc(n.mail_error)}</p>` : ""}
+      <div class="row"><button class="btn sm" data-read="${esc(n.id)}" ${n.read || n.closed || !can("noti.read") ? "disabled" : ""}>확인</button>
+        <button class="btn sm" data-mail="${esc(n.id)}">이메일 초안</button>
+        ${mailOk ? `<button class="btn sm" data-send="${esc(n.id)}">이메일 발송</button>` : ""}
+        <button class="btn sm" data-cert="${esc(n.cert_id)}">인증서 보기</button></div>
+      <div id="mail-${esc(n.id)}" hidden><pre class="email">${esc(n.email_draft)}</pre><button class="btn sm" data-copy="${esc(n.id)}">초안 복사</button></div>
+    </div>`).join("") || `<p class="empty">알림이 없습니다.</p>`}</div>`;
+  const P = $("p-noti");
+  P.querySelectorAll("[data-read]").forEach((b) => (b.onclick = async () => {
+    try { await act("noti.read", [{ op: "update", coll: "notifications", id: b.dataset.read, data: { read: true, read_by: actor(), read_at: nowIso() } }], b.dataset.read); await load(); } catch (e) { toast(e.message); }
+  }));
+  P.querySelectorAll("[data-mail]").forEach((b) => (b.onclick = () => { const el = $("mail-" + b.dataset.mail); el.hidden = !el.hidden; }));
+  const send = async (ids) => { try { const r = await api("POST", "api/mail/send", { ids }); toast(`이메일 발송 ${r.sent}건${r.failed.length ? `, 실패 ${r.failed.length}건: ${r.failed[0].error}` : ""}`); await load(); } catch (e) { toast(`발송 실패: ${e.message}`); } };
+  P.querySelectorAll("[data-send]").forEach((b) => (b.onclick = () => send([b.dataset.send])));
+  if ($("mail-all")) $("mail-all").onclick = () => send(unsent.map((n) => n.id));
+  P.querySelectorAll("[data-copy]").forEach((b) => (b.onclick = async () => {
+    const n = S.data.notifications.find((x) => x.id === b.dataset.copy);
+    try { await navigator.clipboard.writeText(n.email_draft); toast("이메일 초안을 복사했습니다"); }
+    catch { const pre = $("mail-" + n.id).querySelector("pre"); const r = document.createRange(); r.selectNodeContents(pre); getSelection().removeAllRanges(); getSelection().addRange(r); toast("초안을 선택했습니다. Ctrl+C로 복사하세요"); }
+  }));
+  bindCertLinks(P);
+}
+
+// ───────── 보고서 — SC-003
+function reportRows() {
+  const f = S.rep, rep = C.renewalReport(S.data.certificates, Date.now());
+  const rows = rep.rows.filter((r) => (!f.issuer || r.c.issuer_cn === f.issuer) && (!f.owner || r.c.owner === f.owner) && (!f.status || r.status === f.status) && (!f.renewal || r.renewal === f.renewal) &&
+    (f.quick !== "30d" || (r.days <= 30 && r.status !== "만료")) && (f.quick !== "notdone" || r.renewal !== "완료") && (f.quick !== "delayed" || r.delayed));
+  return { rep, rows };
+}
+function renderReport() {
+  const { rep, rows } = reportRows(), f = S.rep;
+  const dups = C.duplicateReport(S.data.certificates);
+  const all = S.data.certificates.filter((c) => !c.replaced_by);
+  const opts = (vals, cur) => vals.map((v) => `<option ${v === cur ? "selected" : ""}>${esc(v)}</option>`).join("");
+  $("p-report").innerHTML = `
+    <div class="tiles">
+      ${C.RENEWAL_STATES.map((k) => `<div class="tile ${k === "완료" ? "ok" : k === "미조치" ? "crit" : "warn"}"><b>${rep.byRenewal[k] || 0}</b><span>갱신 ${k}</span></div>`).join("")}
+      <div class="tile crit"><b>${rep.delayed}</b><span>갱신 지연 (D-7·만료 미조치)</span></div>
+      <div class="tile acc"><b>${dups.length}</b><span>중복 저장 현황</span></div>
+    </div>
+    <div class="card"><h2>갱신 현황 보고서 ${role() === "담당자" ? `· ${esc(S.user.name)} 담당분` : "· 전체"}</h2>
+      <div class="chips" style="margin-bottom:8px">${[["", "전체"], ["30d", "30일 이내 만료"], ["notdone", "갱신 미완료"], ["delayed", "갱신 지연"]].map(([k, l]) => `<button type="button" data-quick="${k}" aria-pressed="${f.quick === k}">${l}</button>`).join("")}</div>
+      <div class="row">
+        <select class="f" id="rf-issuer" aria-label="발급기관"><option value="">발급기관 전체</option>${opts([...new Set(all.map((c) => c.issuer_cn))].sort(), f.issuer)}</select>
+        <select class="f" id="rf-owner" aria-label="관리담당자"><option value="">담당자 전체</option>${opts([...new Set(all.map((c) => c.owner).filter(Boolean))].sort(), f.owner)}</select>
+        <select class="f" id="rf-status" aria-label="만료 상태"><option value="">만료 상태 전체</option>${opts(["만료", "D-7", "D-30", "정상", "사용 전"], f.status)}</select>
+        <select class="f" id="rf-renewal" aria-label="갱신 상태"><option value="">갱신 상태 전체</option>${opts(C.RENEWAL_STATES, f.renewal)}</select>
+        <span class="grow"></span>
+        <button class="btn" id="rep-xlsx">엑셀 내려받기</button><button class="btn" id="rep-csv">CSV</button>
+      </div>
+      <p class="note">${rows.length}건 · 기준 ${new Date().toLocaleString("ko-KR")}</p>
+      ${tbl(["인증서", "발급기관", "만료일", "남은 일수", "만료 상태", "갱신 상태", "담당자", "업무", "저장 위치"], rows.map((r) => `<tr class="click" data-cert="${esc(r.c.id)}"><td>${esc(r.c.subject_cn)}${r.delayed ? ` <span class="pill bad">지연</span>` : ""}</td><td>${esc(r.c.issuer_cn)}</td><td class="mono nw">${r.c.not_after ? C.kstDate(r.c.not_after) : "-"}</td><td class="num">${r.days}</td><td>${pill(r.status)}</td><td>${pill(r.renewal, "r")}</td><td>${esc(r.c.owner || "-")}</td><td>${esc(r.c.system || "-")}</td><td class="note">${(r.c.locations || []).map(esc).join("<br>") || "-"}</td></tr>`), "조건에 맞는 인증서가 없습니다.", 900)}
+    </div>
+    <div class="card"><h2>중복 인증서 현황</h2>
+      <p class="note">같은 인증서 파일이 여러 위치에 저장된 경우와, 같은 이름(CN)으로 유효한 인증서가 여러 개인 경우입니다. 자동 삭제는 하지 않습니다.</p>
+      ${tbl(["유형", "인증서명", "개수", "저장 위치"], dups.map((d) => `<tr><td>${esc(d.type)}</td><td>${esc(d.subject_cn)}</td><td class="num">${d.count}</td><td class="note">${d.locations.map(esc).join("<br>")}</td></tr>`), "중복 저장된 인증서가 없습니다.")}
+    </div>`;
+  const P = $("p-report");
+  P.querySelectorAll("[data-quick]").forEach((b) => (b.onclick = () => { f.quick = b.dataset.quick; renderReport(); }));
+  for (const [id, k] of [["rf-issuer", "issuer"], ["rf-owner", "owner"], ["rf-status", "status"], ["rf-renewal", "renewal"]]) $(id).onchange = (e) => { f[k] = e.target.value; renderReport(); };
+  $("rep-xlsx").onclick = () => exportReport("xlsx");
+  $("rep-csv").onclick = () => exportReport("csv");
+  bindCertLinks(P);
+}
+async function exportReport(kind) {
+  const { rep, rows } = reportRows(), dups = C.duplicateReport(S.data.certificates);
+  const head = ["인증서명", "발급기관", "만료일", "남은 일수", "만료 상태", "갱신 상태", "갱신 지연", "담당자", "이메일", "업무시스템", "일련번호", "저장 위치"];
+  const body = rows.map((r) => [r.c.subject_cn, r.c.issuer_cn, r.c.not_after ? C.kstDate(r.c.not_after) : "", r.days, r.status, r.renewal, r.delayed ? "Y" : "", r.c.owner || "", r.c.owner_email || "", r.c.system || "", r.c.serial_number || "", (r.c.locations || []).join(" | ")]);
+  const stamp = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  if (kind === "csv") {
+    const csv = "﻿" + [head, ...body].map((r) => r.map((v) => { const s = String(v ?? ""); return /[",\n]/.test(s) || /^[=+\-@]/.test(s) ? `"${s.replace(/^([=+\-@])/, "'$1").replace(/"/g, '""')}"` : s; }).join(",")).join("\r\n");
+    return saveFile(`인증서_갱신현황_${stamp}.csv`, csv);
+  }
+  const summary = [["항목", "값"], ["기준일(KST)", stamp], ["작성자", actor()], ["대상", rows.length], ...C.RENEWAL_STATES.map((k) => [`갱신 ${k}`, rep.byRenewal[k] || 0]),
+    ...Object.entries(rep.byStatus).map(([k, v]) => [`만료 상태 ${k}`, v]), ["갱신 지연", rep.delayed], ["중복 저장", dups.length]];
+  await saveFile(`인증서_갱신현황_${stamp}.xlsx`, X.write([
+    { name: "요약", rows: summary, widths: [22, 16] },
+    { name: "갱신 현황", rows: [head, ...body], widths: [30, 34, 12, 9, 10, 10, 9, 10, 24, 12, 22, 40] },
+    { name: "중복 인증서", rows: [["유형", "인증서명", "개수", "저장 위치"], ...dups.map((d) => [d.type, d.subject_cn, d.count, d.locations.join(" | ")])], widths: [20, 30, 8, 60] },
+  ]));
+}
+
+// ───────── 이력
+function renderHist() {
+  const runs = [...S.data.scan_runs].sort((a, b) => String(b.started_at).localeCompare(a.started_at)).slice(0, 10);
+  const ren = [...S.data.renewals].sort((a, b) => String(b.renewed_at).localeCompare(a.renewed_at)).slice(0, 15);
+  const af = (S.audF ||= { q: "", action: "" });
+  const allAud = [...S.data.audit].sort((a, b) => String(b.at).localeCompare(a.at));
+  const actions = [...new Set(allAud.map((a) => a.action))].sort();
+  const audMatch = allAud.filter((a) => (!af.action || a.action === af.action) && (!af.q || [a.actor, a.action, a.detail, a.at].some((v) => String(v || "").toLowerCase().includes(af.q.toLowerCase()))));
+  const aud = audMatch.slice(0, 200);
+  $("p-hist").innerHTML = `
+    ${role() !== "담당자" ? `<div class="card"><h2>수집 실행 이력</h2>${tbl(["실행 시각(UTC)", "폴더", "파일", "승인 대기", "실패"], runs.map((r) => `<tr><td class="mono">${dt(r.started_at)}</td><td>${esc(r.folder)}</td><td class="num">${r.files}</td><td class="num">${r.new_pending}</td><td class="num">${r.failed}</td></tr>`), "수집 이력이 없습니다.")}</div>` : ""}
+    <div class="card"><h2>갱신 이력</h2>${tbl(["처리일", "인증서", "만료일 변경", "처리자", "내용"], ren.map((r) => `<tr><td class="mono">${esc(String(r.renewed_at).slice(0, 10))}</td><td>${esc(r.subject_cn)}</td><td class="mono">${C.kstDate(r.old_not_after)} → ${C.kstDate(r.new_not_after)}</td><td>${esc(r.handled_by)}</td><td>${esc(r.note)}</td></tr>`), "갱신 이력이 없습니다.")}</div>
+    <div class="card"><h2>감사 로그${role() === "담당자" ? " (본인 처리분)" : ""} <span class="note">${audMatch.length}건${audMatch.length > 200 ? " 중 최근 200건" : ""}</span></h2>
+      <div class="row" style="margin-bottom:8px"><input class="f grow" id="au-q" placeholder="처리자·작업·내용 검색 (예: 반려, 박결제, 로그인 실패)" value="${esc(af.q)}" aria-label="감사 로그 검색">
+        <select class="f" id="au-act" aria-label="작업"><option value="">작업 전체</option>${actions.map((x) => `<option ${x === af.action ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></div>
+      ${tbl(["시각(UTC)", "처리자", "작업", "내용"], aud.map((a) => `<tr><td class="mono">${dt(a.at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td>${esc(a.detail)}</td></tr>`), "조건에 맞는 기록이 없습니다.")}</div>`;
+  $("au-q").oninput = (e) => { af.q = e.target.value; clearTimeout(renderHist.t); renderHist.t = setTimeout(() => { renderHist(); const i = $("au-q"); i.focus(); i.setSelectionRange(af.q.length, af.q.length); }, 250); };
+  $("au-act").onchange = (e) => { af.action = e.target.value; renderHist(); };
+}
+
+// ───────── 관리 (사용자·SMTP)
+function renderAdmin() {
+  if (role() !== "관리자") { $("p-admin").innerHTML = ""; return; }
+  if (S.mode !== "server") { $("p-admin").innerHTML = `<div class="card"><h2>관리</h2><p class="note">사용자 계정·SMTP 설정은 PC 서버 버전에서 관리합니다. 웹 시연에서는 상단의 역할 선택으로 5개 역할(관리자·담당자·검토자·승인자·조회자)의 화면과 권한을 확인할 수 있습니다.</p></div>`; return; }
+  const sm = S.smtp || {};
+  $("p-admin").innerHTML = `
+    <div class="card"><h2>사용자 ${S.users.length}명</h2>
+      ${tbl(["아이디", "이름", "이메일", "역할", "상태", "마지막 로그인(UTC)", ""], S.users.map((u) => `<tr><td class="mono">${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(u.email || "-")}</td>
+        <td><select class="f" data-urole="${esc(u.id)}" ${u.id === S.user.id ? "disabled" : ""}>${C.ROLES.map((r) => `<option ${r === u.role ? "selected" : ""}>${r}</option>`).join("")}</select></td>
+        <td>${u.active === false ? `<span class="pill bad">비활성</span>` : u.must_change ? `<span class="pill warn">임시 비밀번호</span>` : `<span class="pill ok">사용</span>`}</td><td class="mono">${dt(u.last_login) || "-"}</td>
+        <td><div class="row">${u.id === S.user.id ? "" : `<button class="btn sm" data-uactive="${esc(u.id)}" data-v="${u.active === false ? "1" : "0"}">${u.active === false ? "활성화" : "비활성화"}</button><button class="btn sm" data-ureset="${esc(u.id)}">비밀번호 초기화</button>`}</div></td></tr>`), "사용자가 없습니다.", 820)}
+      <h3>사용자 추가</h3>
+      <form class="row" id="u-form">
+        <input class="f" id="u-user" placeholder="아이디" required pattern="[a-z0-9._-]{3,32}" style="width:110px" aria-label="아이디">
+        <input class="f" id="u-name" placeholder="이름" required style="width:90px" aria-label="이름">
+        <input class="f" id="u-mail" type="email" placeholder="이메일" style="width:180px" aria-label="이메일">
+        <select class="f" id="u-role" aria-label="역할">${C.ROLES.filter((r) => r !== "관리자").concat("관리자").map((r) => `<option>${r}</option>`).join("")}</select>
+        <input class="f" id="u-pw" type="password" placeholder="임시 비밀번호" required minlength="8" style="width:130px" aria-label="임시 비밀번호" autocomplete="new-password">
+        <button class="btn primary" type="submit">추가</button>
+      </form>
+      <p class="note">담당자 역할은 인증서의 담당자 이름 또는 이메일이 계정과 같은 인증서만 조회·처리합니다. 새 사용자는 첫 로그인 때 비밀번호를 바꿔야 합니다.</p>
+    </div>
+    <div class="card" id="ag-card"><h2>서버 Agent ${(S.agents || []).length}대</h2>
+      <p class="note">인증서가 있는 서버(Linux·Windows)에 <span class="mono">cert_agent.py</span> 를 설치하면 정해진 시각에 인증서를 찾아 이 플랫폼에 올리고(개인키·PFX 파일은 보내지 않음), 배포 단계를 지정한 서버는 승인된 배포를 직접 설치·검사·재적용하고 실제 응답까지 확인합니다. 실패하면 백업으로 자동 원복하고 결과를 보고합니다.</p>
+      ${tbl(["호스트", "OS", "배포 단계", "마지막 접속(UTC)", "최근 결과", ""], (S.agents || []).map((a) => `<tr><td class="mono">${esc(a.host)}</td><td>${esc(a.os || "-")}</td><td>${esc((C.STAGES.find((x) => x.code === a.deploy_stage) || {}).name || "수집만")}</td>
+        <td class="mono">${a.last_seen ? dt(a.last_seen) : `<span class="pill warn">미접속</span>`}</td><td class="note">${esc(a.last_result || "-")}</td><td><button class="btn sm danger" data-agdel="${esc(a.id)}">삭제</button></td></tr>`), "등록된 서버 Agent가 없습니다.", 720)}
+      <h3>서버 등록</h3>
+      <form class="row" id="ag-form">
+        <input class="f" id="ag-host" placeholder="호스트 (예: web01)" required pattern="[a-z0-9][a-z0-9-]{0,40}" style="width:150px" aria-label="호스트">
+        <select class="f" id="ag-os" aria-label="OS"><option>Linux</option><option>Windows</option></select>
+        <select class="f" id="ag-stage" aria-label="배포 단계"><option value="">수집만</option>${C.STAGES.map((x) => `<option value="${x.code}">${x.name} 서버(배포 적용)</option>`).join("")}</select>
+        <button class="btn primary" type="submit">등록하고 토큰 발급</button>
+      </form>
+      <div id="ag-token" hidden></div>
+      <p class="note">토큰은 발급 때 한 번만 보여 주고 플랫폼에는 해시만 저장합니다. PFX 비밀번호는 보관함에서 각 서버 Agent의 공개키로 암호화해 전달하므로, 범위를 <span class="mono">호스트/경로</span> (예: <span class="mono">was01/opt/tomcat/conf/ssl</span>) 로 등록하세요.</p>
+    </div>
+    <div class="card"><h2>이메일(SMTP) 설정</h2>
+      <form id="smtp-form" class="row">
+        <label class="note"><input type="checkbox" id="s-en" ${sm.enabled ? "checked" : ""}> 사용</label>
+        <input class="f" id="s-host" placeholder="SMTP 서버" value="${esc(sm.host || "")}" style="width:170px" aria-label="SMTP 서버">
+        <input class="f" id="s-port" type="number" placeholder="포트" value="${esc(sm.port || 587)}" style="width:80px" aria-label="포트">
+        <select class="f" id="s-sec" aria-label="보안">${[["starttls", "STARTTLS"], ["ssl", "SSL/TLS"], ["none", "없음"]].map(([v, l]) => `<option value="${v}" ${v === (sm.security || "starttls") ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <input class="f" id="s-user" placeholder="계정(선택)" value="${esc(sm.username || "")}" style="width:150px" aria-label="SMTP 계정">
+        <input class="f" id="s-from" placeholder="보내는 주소" value="${esc(sm.from_addr || "")}" style="width:190px" aria-label="보내는 주소">
+        <button class="btn primary" type="submit">저장</button>
+      </form>
+      <div class="row" style="margin-top:8px"><input class="f" id="s-to" type="email" placeholder="테스트 받을 주소" style="width:220px" aria-label="테스트 받을 주소"><button class="btn" id="s-test">테스트 발송</button></div>
+      <p class="note">SMTP 비밀번호는 화면·DB에 저장하지 않습니다. 서버 실행 전 환경변수 SMTP_PASSWORD 로 설정하세요. 매일 자동 발송은 <span class="mono">python agents.py notify --send</span> 를 작업 스케줄러에 등록합니다.</p>
+    </div>`;
+  const P = $("p-admin");
+  P.querySelectorAll("[data-urole]").forEach((s) => (s.onchange = () => patchUser(s.dataset.urole, { role: s.value })));
+  P.querySelectorAll("[data-uactive]").forEach((b) => (b.onclick = () => patchUser(b.dataset.uactive, { active: b.dataset.v === "1" })));
+  P.querySelectorAll("[data-ureset]").forEach((b) => (b.onclick = () => { const pw = prompt("새 임시 비밀번호 (8자 이상, 영문+숫자)"); if (pw) patchUser(b.dataset.ureset, { reset_password: pw }); }));
+  $("u-form").onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api("POST", "api/users", { username: $("u-user").value.trim(), name: $("u-name").value.trim(), email: $("u-mail").value.trim(), role: $("u-role").value, password: $("u-pw").value });
+      toast("사용자를 추가했습니다"); await load(); } catch (err) { toast(`추가 실패: ${err.message}`); }
+  };
+  $("smtp-form").onsubmit = async (e) => {
+    e.preventDefault();
+    try { S.smtp = await api("PUT", "api/settings/smtp", { enabled: $("s-en").checked, host: $("s-host").value.trim(), port: +$("s-port").value, security: $("s-sec").value, username: $("s-user").value.trim(), from_addr: $("s-from").value.trim() });
+      S.health.smtp = S.smtp.enabled; toast("SMTP 설정을 저장했습니다"); renderAll(); } catch (err) { toast(`저장 실패: ${err.message}`); }
+  };
+  $("ag-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const host = $("ag-host").value.trim().toLowerCase();
+    try { const r = await api("POST", "api/agents", { host, name: host, os: $("ag-os").value, deploy_stage: $("ag-stage").value });
+      S.agents = await api("GET", "api/agents"); renderAdmin();
+      const box = $("ag-token"); box.hidden = false;
+      const conf = JSON.stringify({ platform: location.origin + location.pathname.replace(/[^/]*$/, ""), token: r.token, scan: $("ag-os").value === "Windows" ? ["C:\\certs"] : ["/etc/nginx/ssl", "/etc/letsencrypt/live"], service: {} }, null, 1);
+      box.innerHTML = `<div class="card" style="padding:12px;border-color:var(--acc)"><b>${esc(host)} 토큰 발급 완료 — 지금 한 번만 표시됩니다</b><pre class="email">${esc(conf)}</pre><p class="note">이 내용을 서버의 <span class="mono">/etc/cert-agent/agent.json</span> (Windows: <span class="mono">C:\\ProgramData\\cert-agent\\agent.json</span>) 에 저장하고 <span class="mono">python3 cert_agent.py run</span> 을 cron·작업 스케줄러에 등록하세요.</p></div>`;
+    } catch (err) { toast(`등록 실패: ${err.message}`); }
+  };
+  P.querySelectorAll("[data-agdel]").forEach((b) => (b.onclick = async () => {
+    if (!confirm(`${b.dataset.agdel} 서버 Agent를 삭제할까요? 토큰이 즉시 무효가 됩니다.`)) return;
+    try { await api("POST", `api/agents/${encodeURIComponent(b.dataset.agdel)}/delete`); S.agents = await api("GET", "api/agents"); renderAdmin(); toast("삭제했습니다"); } catch (err) { toast(err.message); }
+  }));
+  $("s-test").onclick = async () => { try { await api("POST", "api/mail/test", { to: $("s-to").value.trim() }); toast("테스트 메일을 보냈습니다"); } catch (err) { toast(err.message); } };
+}
+async function patchUser(id, body) { try { await api("PATCH", `api/users/${encodeURIComponent(id)}`, body); toast("변경했습니다"); await load(); } catch (e) { toast(`변경 실패: ${e.message}`); await load(); } }
+
+// ───────── QA 챗봇 · 가이드(RAG) 관리
+const EXAMPLES = ["pay.example.co.kr 인증서는 언제 만료되고 어떻게 갱신해?", "Let's Encrypt 자동 갱신이 실패했을 때 확인할 것은?",
+  "IIS에 갱신한 PFX 인증서를 적용하는 방법", "모바일에서만 인증서 오류가 나는 이유는?", "갱신한 인증서와 개인키가 맞는지 확인하려면?"];
+const uploadedGuides = () => (S.data.guides || []).filter((g) => !g.deleted).sort((a, b) => String(a.code).localeCompare(String(b.code)));
+function rebuildIndex() {
+  const up = uploadedGuides().map((g) => ({ id: g.code, title: g.title, applies: g.applies && g.applies.length ? g.applies : ["공통"], sources: g.sources || [], sections: g.sections || [] }));
+  S.index = C.buildIndex([...S.guides, ...up]);
+}
+function renderGuides() {
+  if (!$("qa-guides")) return;
+  const up = uploadedGuides(), canUp = can("guide.manage");
+  const words = S.index ? S.index.df.size : 0;
+  $("qa-guides").innerHTML = `<h2>가이드 문서 (RAG 지식)</h2>
+    <p class="note">갱신 가이드를 올리면 제목·문단 단위로 나눠 검색 색인(BM25, 한글 2글자 묶음)에 바로 추가합니다. 이후 질문부터 올린 가이드도 근거로 쓰이며, 답변에 <span class="mono">[U01-2]</span>처럼 업로드 가이드 번호가 붙습니다.</p>
+    <div class="row" style="margin:6px 0 10px"><button class="pill" data-glist="builtin" aria-expanded="${S.glist === "builtin"}">기본 가이드 ${S.guides.length}종 ${S.glist === "builtin" ? "▴" : "▾"}</button><button class="pill ok" data-glist="uploaded" aria-expanded="${S.glist === "uploaded"}">업로드 ${up.length}종 ${S.glist === "uploaded" ? "▴" : "▾"}</button><span class="pill muted">검색 문단 ${S.index ? S.index.N : 0}개</span><span class="pill muted">색인 단어 ${words.toLocaleString()}개</span></div>
+    ${canUp ? `<div class="gdrop" id="g-drop" tabindex="0"><div class="row"><button class="btn primary" id="g-pick">가이드 파일 올리기</button><input type="file" id="g-in" multiple accept=".pdf,.txt,.md,.markdown,.html,.htm,.docx,.json" hidden>
+      <span class="note">PDF · Word(.docx) · 웹 문서(.html) · 텍스트(.txt·.md) · 가이드 JSON, 여러 개 가능 · 끌어다 놓아도 됩니다</span></div><p class="note" id="g-msg" style="margin:6px 0 0">${esc(S.guideMsg || "")}</p></div>` : `<p class="note">가이드 업로드는 관리자만 할 수 있습니다.</p>`}
+    <div id="g-list">${S.glist === "builtin" ? `<h3 style="margin:12px 0 6px;font-size:14px">기본 가이드 ${S.guides.length}종 <span class="note">발급기관·서버별 갱신 절차 (공식 문서 기반으로 정리)</span></h3>
+      <div class="tbl"><table style="min-width:720px"><thead><tr><th>번호</th><th>제목</th><th>적용 대상</th><th class="num">문단</th><th>출처</th><th></th></tr></thead><tbody>
+      ${S.guides.map((g) => `<tr><td class="mono">${esc(g.id)}</td><td>${esc(g.title)}</td><td>${(g.applies || []).map((a) => `<span class="pill muted">${esc(a)}</span>`).join(" ")}</td><td class="num">${(g.sections || []).length}</td>
+        <td class="note">${(g.sources || []).slice(0, 2).map((u) => { let h = u; try { h = new URL(u).hostname; } catch {} return `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(h)}</a>`; }).join("<br>")}</td>
+        <td><button class="btn sm" data-gview="b-${esc(g.id)}">문단 보기</button></td></tr>
+        <tr id="gv-b-${esc(g.id)}" hidden><td colspan="6">${(g.sections || []).map((x, i) => `<p class="note" style="margin:4px 0"><b class="mono">[${esc(g.id)}-${i + 1}]</b> <b>${esc(x.h)}</b> · ${esc(x.body.slice(0, 220))}${x.body.length > 220 ? "…" : ""}</p>`).join("")}</td></tr>`).join("")}
+      </tbody></table></div>` : ""}
+    ${S.glist === "uploaded" ? `<h3 style="margin:12px 0 6px;font-size:14px">업로드 가이드 ${up.length}종</h3>${up.length ? `<div class="tbl"><table style="min-width:720px"><thead><tr><th>번호</th><th>제목</th><th>적용 대상</th><th class="num">문단</th><th class="num">글자</th><th>파일</th><th>올린 사람</th><th></th></tr></thead><tbody>
+      ${up.map((g) => `<tr><td class="mono">${esc(g.code)}</td><td>${esc(g.title)}</td><td>${(g.applies || []).map((a) => `<span class="pill muted">${esc(a)}</span>`).join(" ")}</td><td class="num">${(g.sections || []).length}</td><td class="num">${(g.chars || 0).toLocaleString()}</td><td class="mono">${esc((g.sources || [])[0] || "")}</td><td class="note">${esc(g.uploaded_by || "")}<span class="sub">${dt(g.uploaded_at)}</span></td>
+        <td><div class="row"><button class="btn sm" data-gview="${esc(g.id)}">문단 보기</button>${canUp ? `<button class="btn sm danger" data-gdel="${esc(g.id)}">삭제</button>` : ""}</div></td></tr>
+        <tr id="gv-${esc(g.id)}" hidden><td colspan="8">${(g.sections || []).map((x, i) => `<p class="note" style="margin:4px 0"><b class="mono">[${esc(g.code)}-${i + 1}]</b> <b>${esc(x.h)}</b> · ${esc(x.body.slice(0, 220))}${x.body.length > 220 ? "…" : ""}</p>`).join("")}</td></tr>`).join("")}
+      </tbody></table></div>` : `<p class="empty">아직 올린 가이드가 없습니다. ${canUp ? "위 '가이드 파일 올리기'로 벤더 설치·갱신 가이드(PDF·Word 등)를 올리면 여기에 표시되고 바로 답변 근거로 쓰입니다." : "관리자가 가이드를 올리면 여기에 표시됩니다."}</p>`}` : ""}</div>`;
+  if (canUp) {
+    $("g-pick").onclick = () => $("g-in").click();
+    $("g-in").onchange = (e) => { if (e.target.files.length) uploadGuides([...e.target.files]); e.target.value = ""; };
+    const dz = $("g-drop");
+    dz.ondragover = (e) => { e.preventDefault(); dz.classList.add("over"); }; dz.ondragleave = () => dz.classList.remove("over");
+    dz.ondrop = (e) => { e.preventDefault(); dz.classList.remove("over"); if (e.dataTransfer.files.length) uploadGuides([...e.dataTransfer.files]); };
+  }
+  $("qa-guides").querySelectorAll("[data-gview]").forEach((b) => (b.onclick = () => { const r = $("gv-" + b.dataset.gview); r.hidden = !r.hidden; b.textContent = r.hidden ? "문단 보기" : "문단 접기"; }));
+  $("qa-guides").querySelectorAll("[data-glist]").forEach((b) => (b.onclick = () => { S.glist = S.glist === b.dataset.glist ? null : b.dataset.glist; renderGuides(); }));
+  $("qa-guides").querySelectorAll("[data-gdel]").forEach((b) => (b.onclick = async () => {
+    const g = uploadedGuides().find((x) => x.id === b.dataset.gdel);
+    try { await act("guide.manage", [{ op: "update", coll: "guides", id: g.id, data: { deleted: true, deleted_by: actor(), deleted_at: nowIso() } }], `삭제: ${g.code} ${g.title}`);
+      S.guideMsg = `${g.code} ${g.title}을(를) RAG에서 뺐습니다.`; await load(); } catch (e) { toast(`삭제 실패: ${e.message}`); }
+  }));
+}
+// PDF → 텍스트: pdf.js(로컬 번들, Apache-2.0)로 페이지별 글자를 읽고, 줄 높이로 제목 줄을 찾아 '# ' 로 표시
+let pdfjsLib = null;
+async function pdfText(buf) {
+  if (!pdfjsLib) {
+    pdfjsLib = await import(new URL("vendor/pdfjs/pdf.min.mjs", location.href).href);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("vendor/pdfjs/pdf.worker.mjs", location.href).href;
+  }
+  let doc, task;
+  try {
+    // 한글 CID 글꼴용 CMap 은 cmaps.json 하나로 묶어 두고 필요할 때 꺼내 씀 (.bcmap 파일을 따로 서비스하지 않아도 되게)
+    class PackedCMaps {
+      async fetch({ kind, filename }) {
+        if (kind !== "cMapUrl") throw new Error(`${kind} 데이터 없음`);
+        if (!PackedCMaps.map) PackedCMaps.map = await (await fetch(new URL("vendor/pdfjs/cmaps.json", location.href))).json();
+        const b = PackedCMaps.map[filename]; if (!b) throw new Error(`CMap 없음: ${filename}`);
+        return Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
+      }
+    }
+    task = pdfjsLib.getDocument({ data: buf, cMapUrl: "cmaps/", cMapPacked: true, BinaryDataFactory: PackedCMaps, useWorkerFetch: false,
+      isEvalSupported: false, disableFontFace: true, useSystemFonts: false, stopAtErrors: false });
+    doc = await task.promise;
+  } catch (e) { throw new Error(/password/i.test(e?.name + e?.message) ? "암호가 걸린 PDF는 열 수 없습니다" : "PDF를 열지 못했습니다(손상되었거나 PDF 형식이 아님)"); }
+  if (doc.numPages > 200) throw new Error("200쪽 이하 PDF만 올릴 수 있습니다");
+  const lines = [];   // { t, h, page }
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i), tc = await page.getTextContent();
+    let cur = { t: "", h: 0, y: null };
+    const push = () => { const t = cur.t.replace(/\s+/g, " ").trim(); if (t) lines.push({ t, h: cur.h, page: i }); cur = { t: "", h: 0, y: null }; };
+    for (const it of tc.items) {
+      if (typeof it.str !== "string") continue;
+      const y = it.transform[5], h = Math.abs(it.transform[3]) || it.height || 0;
+      if (cur.y !== null && Math.abs(y - cur.y) > Math.max(2, h * 0.6) && cur.t.trim()) push();
+      cur.t += it.str; cur.h = Math.max(cur.h, h); cur.y = y;
+      if (it.hasEOL) push();
+    }
+    push(); lines.push({ t: "", h: 0, page: i, br: true });
+    page.cleanup();
+  }
+  const pages = doc.numPages;
+  await task.destroy();
+  const body = lines.filter((l) => l.t);
+  if (body.reduce((a, l) => a + l.t.length, 0) < 50) throw new Error("글자를 읽을 수 없는 PDF입니다(스캔 이미지일 수 있음). 글자가 있는 PDF나 Word로 올려 주세요");
+  // 머리글·바닥글(여러 쪽에 똑같이 반복되는 줄)과 쪽번호 줄 제거
+  const freq = new Map(); body.forEach((l) => freq.set(l.t, (freq.get(l.t) || 0) + 1));
+  const hs = body.map((l) => l.h).sort((a, b) => a - b), med = hs[Math.floor(hs.length / 2)] || 10;
+  const out = [];
+  for (const l of lines) {
+    if (l.br) { out.push(""); continue; }
+    if ((pages >= 3 && freq.get(l.t) >= Math.max(3, pages * 0.6)) || /^[-–—\s]*\d{1,3}\s*(\/\s*\d{1,3})?[-–—\s]*$/.test(l.t) || /^page\s*\d+/i.test(l.t)) continue;
+    const heading = l.h >= med * 1.18 && l.t.length <= 60 && !/[.。]$/.test(l.t);
+    out.push(heading ? `\n# ${l.t}\n` : l.t);
+  }
+  const text = out.join("\n").replace(/\n{3,}/g, "\n\n");
+  const title = (body.find((l) => l.h >= med * 1.18 && l.t.length <= 80) || body[0]).t;
+  return { text, title };
+}
+// 파일 → 텍스트 (제목은 '# ' 줄로 바꿔 문단 나누기에 쓰임)
+async function guideText(file) {
+  const name = file.name, ext = name.split(".").pop().toLowerCase(), buf = new Uint8Array(await file.arrayBuffer());
+  const dec = (u) => { const t = new TextDecoder("utf-8").decode(u); return (t.match(/\uFFFD/g) || []).length > 5 ? new TextDecoder("euc-kr").decode(u) : t; };
+  if (ext === "pdf") return pdfText(buf);
+  if (ext === "docx") {
+    const z = await X.unzip(buf.buffer), xml = await z.text("word/document.xml");
+    if (!xml) throw new Error("Word 문서 본문을 찾지 못했습니다");
+    const paras = xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) || [];
+    return paras.map((p) => { const t = (p.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g) || []).map((x) => x.replace(/<[^>]+>/g, "")).join("").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+      const st = (p.match(/<w:pStyle w:val="([^"]+)"/) || [])[1] || ""; return /heading|제목|title/i.test(st) && t.trim() ? `\n# ${t.trim()}\n` : t; }).join("\n\n");
+  }
+  if (ext === "html" || ext === "htm") {
+    const doc = new DOMParser().parseFromString(dec(buf), "text/html");
+    doc.querySelectorAll("script,style,nav,header,footer,noscript,svg").forEach((n) => n.remove());
+    const out = [];
+    doc.body.querySelectorAll("h1,h2,h3,h4,p,li,pre,td,blockquote,dt,dd").forEach((n) => { if (n.closest("li") && n.tagName !== "LI") return;
+      const t = n.textContent.replace(/\s+/g, " ").trim(); if (!t) return; out.push(/^H[1-4]$/.test(n.tagName) ? `\n# ${t}\n` : n.tagName === "LI" ? `- ${t}` : t); });
+    return { text: out.join("\n\n"), title: (doc.querySelector("h1")?.textContent || doc.title || "").trim() };
+  }
+  return dec(buf);
+}
+async function uploadGuides(files) {
+  const done = [], fail = [];
+  let next = Math.max(0, ...(S.data.guides || []).map((g) => +String(g.code || "U0").slice(1) || 0)) + 1;
+  for (const f of files) {
+    try {
+      if (f.size > (/\.pdf$/i.test(f.name) ? 20 : 3) * 1024 * 1024) throw new Error(/\.pdf$/i.test(f.name) ? "PDF는 20MB 이하만 올릴 수 있습니다" : "3MB 이하 파일만 올릴 수 있습니다");
+      if (/\.json$/i.test(f.name)) {   // 가이드 JSON(기본 가이드와 같은 형식)
+        const arr = JSON.parse(new TextDecoder().decode(new Uint8Array(await f.arrayBuffer())));
+        for (const g of (Array.isArray(arr) ? arr : [arr])) {
+          if (!g.title || !Array.isArray(g.sections)) throw new Error("가이드 JSON 형식(title, sections)이 아닙니다");
+          const code = "U" + String(next++).padStart(2, "0"), chars = g.sections.reduce((a, x) => a + String(x.body || "").length, 0);
+          await saveGuide({ code, title: String(g.title).slice(0, 100), applies: g.applies || C.detectApplies(JSON.stringify(g)), sources: [f.name], sections: g.sections.map((x) => ({ h: String(x.h || g.title), body: String(x.body || "") })), chars });
+          done.push(`${code} ${g.title}`);
+        }
+        continue;
+      }
+      const r = await guideText(f), text = typeof r === "string" ? r : r.text;
+      if (text.replace(/\s/g, "").length < 50) throw new Error("본문이 너무 짧습니다");
+      if (text.length > 150000) throw new Error("본문이 15만 자를 넘습니다. 나눠서 올려 주세요");
+      const firstHead = (text.match(/^#\s+(.+)$/m) || [])[1];
+      const title = ((typeof r === "object" && r.title) || firstHead || f.name.replace(/\.[^.]+$/, "")).slice(0, 100);
+      const sections = C.chunkGuide(title, text);
+      if (!sections.length) throw new Error("문단을 만들지 못했습니다");
+      const code = "U" + String(next++).padStart(2, "0");
+      await saveGuide({ code, title, applies: C.detectApplies(title + " " + text.slice(0, 5000)), sources: [f.name], sections, chars: text.length });
+      done.push(`${code} ${title}(문단 ${sections.length}개)`);
+    } catch (e) { fail.push(`${f.name}: ${e.message}`); }
+  }
+  S.guideMsg = (done.length ? `RAG에 추가했습니다: ${done.join(", ")}.` : "") + (fail.length ? ` 실패: ${fail.join(" / ")}` : "");
+  if (done.length) S.glist = "uploaded";
+  await load();
+  if (done.length) toast(`가이드 ${done.length}종을 RAG에 추가했습니다`); else if (fail.length) toast("가이드를 추가하지 못했습니다");
+}
+async function saveGuide(g) {
+  const id = "g_" + C.hashId(g.code + g.title + g.chars + Date.now());
+  await act("guide.manage", [{ op: "set", coll: "guides", id, data: { ...g, uploaded_by: actor(), uploaded_at: nowIso(), deleted: false } }], `업로드: ${g.code} ${g.title} · 문단 ${g.sections.length}개`);
+}
+
+function renderExamples() {
+  $("qa-examples").innerHTML = EXAMPLES.map((q) => `<button type="button">${esc(q)}</button>`).join("");
+  $("qa-examples").querySelectorAll("button").forEach((b) => (b.onclick = () => { $("qa-input").value = b.textContent; ask(); }));
+}
+function bubble(cls, text) { const d = document.createElement("div"); d.className = "msg " + cls; d.textContent = text; $("chat").appendChild(d); $("chat").scrollTop = 1e9; return d; }
+async function llm(prompt, onText) {
+  if (S.mode === "server") return (await api("POST", "api/llm", { prompt })).text;
+  const r = await S.sample(prompt, { cache: false, modelTier: "default", onText: ({ text }) => onText(text) });
+  return r.text;
+}
+// 답변 검증 AI (챗봇과 별도 호출)
+async function verifierLLM(prompt) {
+  if (S.mode === "server") {
+    const t = (await api("POST", "api/llm", { prompt })).text;
+    const m = t.match(/\{[\s\S]*\}/); if (!m) throw new Error("검증 결과 형식 오류"); return JSON.parse(m[0]);
+  }
+  if (S.sample.json) return S.sample.json(prompt, { cache: false, modelTier: "default" });
+  const r = await S.sample(prompt, { cache: false, modelTier: "default" }); const m = r.text.match(/\{[\s\S]*\}/); return JSON.parse(m[0]);
+}
+function verifyCard(v, rules, note) {
+  const d = document.createElement("div"); d.className = "verify v-" + v.verdict;
+  const bar = (label, x) => x === null || x === undefined ? "" : `<span class="score">${label} <b>${x}</b><i><b style="width:${x}%"></b></i></span>`;
+  const vp = { 적합: "ok", 주의: "warn", 부적합: "bad", 참고: "muted" }[v.verdict] || "muted";
+  d.innerHTML = `<div class="vh">답변 검증 AI <span class="pill ${vp}">${esc(v.verdict)}</span>${bar("정확도", v.accuracy)}${bar("품질", v.quality)}${v.ruleOnly ? `<span class="note" style="font-weight:400">규칙 검사</span>` : ""}</div>
+    ${v.comment ? `<div style="margin-top:6px">${esc(v.comment)}</div>` : ""}
+    ${v.unsupported.length ? `<div style="margin-top:6px"><b>근거로 확인되지 않은 내용</b><ul>${v.unsupported.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    ${v.missing.length ? `<div style="margin-top:6px"><b>빠진 내용</b><ul>${v.missing.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    ${rules ? `<div class="rules">규칙 검사: 인용 ${rules.cited.length}개 · 잘못된 인용 ${rules.invalid.length}${rules.invalid.length ? `(${esc(rules.invalid.join(", "))})` : ""} · 근거에 없는 수치 ${rules.numbersNotInContext.length}${rules.numbersNotInContext.length ? `(${esc(rules.numbersNotInContext.join(", "))})` : ""} · 근거에 없는 명령 옵션 ${rules.commandsNotInContext.length}${note ? ` · ${esc(note)}` : ""}</div>` : ""}`;
+  return d;
+}
+async function ask() {
+  const q = $("qa-input").value.trim();
+  if (!q) return;
+  $("qa-input").value = ""; bubble("me", q);
+  const out = bubble("bot", "답변 준비 중…");
+  const blocked = C.qaGuard(q);
+  if (blocked) { out.textContent = blocked; const m = document.createElement("span"); m.className = "meta"; m.textContent = "입력 가드레일에서 차단 · Claude 호출 안 함"; out.appendChild(m); return; }
+  const mentioned = C.findCerts(q, active());     // 담당자는 본인 담당 인증서만 근거로 사용
+  const hits = C.withRenewalContext(S.index, q, C.search(S.index, q, { k: 4, issuer: mentioned[0]?.issuer_cn }), mentioned[0], 4);
+  let text, engine = "검색형";
+  if (S.llm) {
+    try { text = await llm(C.buildPrompt(q, hits, mentioned, Date.now()), (t) => (out.textContent = t)); engine = "Claude"; }
+    catch (e) { text = null; out.dataset.err = e.code || e.message; }
+  }
+  if (!text) text = C.extractiveAnswer(q, hits, mentioned, Date.now());
+  out.innerHTML = esc(text).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, '<code class="mono">$1</code>');
+  const meta = document.createElement("span"); meta.className = "meta";
+  const srcs = [...new Map(hits.map((h) => [h.chunk.doc, h.chunk])).values()];
+  meta.innerHTML = `${engine} 답변${out.dataset.err ? ` (Claude 호출 실패: ${esc(out.dataset.err)} → 검색형)` : ""} · ` +
+    `참고: ${srcs.map((c) => `[${esc(c.doc)}] ${esc(c.title)}${c.sources[0]?.startsWith("http") ? ` <a href="${esc(c.sources[0])}" target="_blank" rel="noopener">출처</a>` : c.doc.startsWith("U") ? " (업로드)" : ""}`).join(" · ") || "없음"}`;
+  out.appendChild(meta);
+  // 답변 검증 AI
+  const rules = C.verifyRules(text, hits, mentioned, Date.now());
+  if (engine !== "Claude") {   // 검색형: AI가 만든 답이 아니라 원문 인용이므로 검증 AI 카드 대신 안내 한 줄
+    const n = document.createElement("p"); n.className = "note"; n.style.margin = "-2px 0 8px";
+    n.textContent = "검색형 답변(가이드 원문 인용)입니다. Claude가 연결되면 답변마다 '답변 검증 AI'의 정확도·품질 평가가 이 자리에 붙습니다.";
+    $("chat").appendChild(n); $("chat").scrollTop = 1e9; return;
+  }
+  // 검증 → (부적합이면) 피드백 반영 재작성 → 재검증 : Self-Correction 루프 (최대 2회)
+  const log = [`Plan: 질문 분류 → 인증서 인식 → 근거 검색 → 답변 생성 → 검증 → (부적합 시) 피드백 반영 재작성`,
+    `인증서 인식: ${mentioned.map((c) => c.subject_cn).join(", ") || "없음"}`,
+    `근거 검색(BM25 한글 2-gram): ${hits.map((h) => h.chunk.id).join(", ")}`, `답변 생성: Claude · 인용 ${rules.cited.length}개`];
+  let cur = { text, rules, out }, verdict = null;
+  for (let round = 0; round <= 2; round++) {
+    const wait = document.createElement("div"); wait.className = "verify v-참고"; wait.textContent = round ? "검증 피드백을 반영한 답변을 다시 검증하고 있습니다…" : "답변 검증 AI가 정확도·품질을 확인하고 있습니다…";
+    $("chat").appendChild(wait); $("chat").scrollTop = 1e9;
+    let card;
+    try { const raw = await verifierLLM(C.buildVerifyPrompt(q, hits, mentioned, cur.text, Date.now())); verdict = C.normalizeVerdict(raw, cur.rules); card = verifyCard(verdict, cur.rules); }
+    catch (e) { verdict = null; card = verifyCard(C.ruleVerdict(cur.rules, false), cur.rules, `검증 AI 호출 실패(${e.code || e.message})`); }
+    wait.replaceWith(card);
+    log.push(`검증 ${round + 1}차: ${verdict ? `정확도 ${verdict.accuracy} · 품질 ${verdict.quality} → ${verdict.verdict}` : "검증 AI 없음(규칙 검사만)"}${cur.rules.invalid.length + cur.rules.numbersNotInContext.length + cur.rules.commandsNotInContext.length ? ` · 규칙 위반 ${cur.rules.invalid.length + cur.rules.numbersNotInContext.length + cur.rules.commandsNotInContext.length}건` : ""}`);
+    if (!verdict || verdict.verdict !== "부적합" || round === 2) break;
+    // Self-Correction: 피드백을 넣어 다시 쓰기
+    log.push(`Self-Correction ${round + 1}회: 근거 없는 내용 ${verdict.unsupported.length}건 · 빠진 내용 ${verdict.missing.length}건 반영해 재작성`);
+    cur.out.classList.add("superseded");
+    const o2 = bubble("bot", "검증 피드백을 반영해 답변을 다시 쓰고 있습니다…");
+    let t2 = null;
+    try { t2 = await llm(C.buildRevisePrompt(q, hits, mentioned, cur.text, verdict, cur.rules, Date.now()), (t) => (o2.textContent = t)); } catch (e) { o2.textContent = `재작성 실패: ${e.message}`; break; }
+    o2.innerHTML = esc(t2).replace(/`([^`]+)`/g, '<code class="mono">$1</code>');
+    const m2 = document.createElement("span"); m2.className = "meta"; m2.textContent = `Claude 답변 · 검증 피드백 반영 재작성 ${round + 1}회`; o2.appendChild(m2);
+    cur = { text: t2, rules: C.verifyRules(t2, hits, mentioned, Date.now()), out: o2 };
+  }
+  const lg = document.createElement("details"); lg.className = "agentlog";
+  lg.innerHTML = `<summary>Agent 추론 로그 (${log.length}단계)</summary><ol>${log.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`;
+  $("chat").appendChild(lg); $("chat").scrollTop = 1e9;
+  console.info("[QA Agent]\n" + log.join("\n"));
+}
+$("qa-form").addEventListener("submit", (e) => { e.preventDefault(); ask(); });
+init();
+</script>

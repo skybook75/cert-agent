@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Cert management AI Agent - test lab (TEST ONLY). platform(Linux) + web01(nginx) + was01(Tomcat files) + win01(IIS).
+  All servers use test certificates signed by a private test CA. Delete the stack after testing.
+
+Parameters:
+  MyIp:
+    Type: String
+    Description: Your public IP in CIDR form (e.g. 203.0.113.10/32). Only this IP can open the platform (8000) and test sites (443).
+    AllowedPattern: ^\d+\.\d+\.\d+\.\d+/32$
+  WithWindows:
+    Type: String
+    AllowedValues: ["yes", "no"]
+    Default: "yes"
+  LinuxAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  WindowsAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base
+
+Conditions:
+  Win: !Equals [!Ref WithWindows, "yes"]
+
+Resources:
+  LabSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: cert-lab (platform 8000 / https 443 from MyIp, all traffic inside the lab)
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 8000, ToPort: 8000, CidrIp: !Ref MyIp, Description: platform web }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: !Ref MyIp, Description: test https sites }
+      Tags: [{ Key: Project, Value: cert-lab }]
+  LabSGSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties: { GroupId: !GetAtt LabSG.GroupId, IpProtocol: "-1", SourceSecurityGroupId: !GetAtt LabSG.GroupId, Description: lab internal }
+
+  # SSH 키 없이 SSM(세션 관리자·Run Command)으로만 접속
+  LabRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{ Effect: Allow, Principal: { Service: ec2.amazonaws.com }, Action: sts:AssumeRole }]
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore]
+      Policies:
+        - PolicyName: read-lab-params
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [ssm:GetParameter]
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cert-lab/*
+  LabProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: { Roles: [!Ref LabRole] }
+
+  Platform:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LinuxAmi
+      InstanceType: t3.small
+      IamInstanceProfile: !Ref LabProfile
+      SecurityGroupIds: [!GetAtt LabSG.GroupId]
+      MetadataOptions: { HttpTokens: required }
+      Tags: [{ Key: Name, Value: cert-lab-platform }, { Key: Project, Value: cert-lab }, { Key: Role, Value: platform }]
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          curl -fsSL https://raw.githubusercontent.com/skybook75/cert-agent/main/src/remote/aws/bootstrap.sh -o /root/bootstrap.sh
+          bash /root/bootstrap.sh platform > /var/log/cert-lab-bootstrap.log 2>&1
+  Web01:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LinuxAmi
+      InstanceType: t3.micro
+      IamInstanceProfile: !Ref LabProfile
+      SecurityGroupIds: [!GetAtt LabSG.GroupId]
+      MetadataOptions: { HttpTokens: required }
+      Tags: [{ Key: Name, Value: cert-lab-web01 }, { Key: Project, Value: cert-lab }, { Key: Role, Value: web01 }]
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          curl -fsSL https://raw.githubusercontent.com/skybook75/cert-agent/main/src/remote/aws/bootstrap.sh -o /root/bootstrap.sh
+          bash /root/bootstrap.sh web01 > /var/log/cert-lab-bootstrap.log 2>&1
+  Was01:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LinuxAmi
+      InstanceType: t3.micro
+      IamInstanceProfile: !Ref LabProfile
+      SecurityGroupIds: [!GetAtt LabSG.GroupId]
+      MetadataOptions: { HttpTokens: required }
+      Tags: [{ Key: Name, Value: cert-lab-was01 }, { Key: Project, Value: cert-lab }, { Key: Role, Value: was01 }]
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          curl -fsSL https://raw.githubusercontent.com/skybook75/cert-agent/main/src/remote/aws/bootstrap.sh -o /root/bootstrap.sh
+          bash /root/bootstrap.sh was01 > /var/log/cert-lab-bootstrap.log 2>&1
+  Win01:
+    Type: AWS::EC2::Instance
+    Condition: Win
+    Properties:
+      ImageId: !Ref WindowsAmi
+      InstanceType: t3.medium
+      IamInstanceProfile: !Ref LabProfile
+      SecurityGroupIds: [!GetAtt LabSG.GroupId]
+      MetadataOptions: { HttpTokens: required }
+      Tags: [{ Key: Name, Value: cert-lab-win01 }, { Key: Project, Value: cert-lab }, { Key: Role, Value: win01 }]
+      UserData:
+        Fn::Base64: |
+          <powershell>
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          Invoke-WebRequest https://raw.githubusercontent.com/skybook75/cert-agent/main/src/remote/aws/bootstrap_win.ps1 -OutFile C:\bootstrap_win.ps1 -UseBasicParsing
+          powershell -ExecutionPolicy Bypass -File C:\bootstrap_win.ps1
+          </powershell>
+
+Outputs:
+  PlatformUrl:
+    Value: !Sub http://${Platform.PublicIp}:8000/
+  PlatformPrivateUrl:
+    Description: URL the agents use inside the lab
+    Value: !Sub http://${Platform.PrivateIp}:8000/
+  Web01Https:
+    Value: !Sub https://${Web01.PublicIp}/
