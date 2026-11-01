@@ -1,0 +1,27 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>인증서 관리 AI Agent — 시연 영상</title>
+<style>
+:root{--navy:#1A365D;--mint:#3BB8B0;--bg:#F5F7FA;--fg:#1A1A1A;--card:#fff;--sub:#555}
+@media (prefers-color-scheme:dark){:root{--bg:#0F1720;--fg:#E8EEF4;--card:#18232F;--sub:#A9B6C3}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans KR","Malgun Gothic",system-ui,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:26px;margin:0 0 4px}.k{color:var(--mint);font-weight:700;font-size:13px;letter-spacing:1px}
+p.sub{color:var(--sub);margin:4px 0 16px;line-height:1.6}
+video{width:100%;border-radius:12px;background:#000;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.ch{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-top:16px}
+.ch button{all:unset;cursor:pointer;background:var(--card);border-radius:10px;padding:10px 12px;border:1px solid rgba(128,128,128,.25);font-size:14px}
+.ch button:hover{border-color:var(--mint)}.ch b{color:var(--mint);font-family:ui-monospace,monospace;margin-right:8px}
+.foot{margin-top:20px;font-size:13px;color:var(--sub);line-height:1.7}a{color:var(--mint)}
+</style></head><body><div class="wrap">
+<div class="k">SK AX AI TALENT LAB · 2026 AI MASTER PROJECT</div>
+<h1>인증서 관리 AI Agent — 실제 동작 시연</h1>
+<p class="sub">AWS EC2 실서버 4대(플랫폼 · nginx · Tomcat · IIS)에서 실제 화면을 조작해 녹화했습니다. 대기 구간은 빨리 감기로 줄였고, 음성 설명과 자막이 들어 있습니다. (4분 41초 · 양필규 07003)</p>
+<video id="v" controls preload="metadata" playsinline poster="poster.jpg"><source src="cert-agent-demo.mp4" type="video/mp4"></video>
+<div class="ch" id="ch"></div>
+<div class="foot">테스트 결과·화면 증적: <a href="../test-report/">테스트 보고서</a> · 운영 플랫폼: https://certagent-ai.duckdns.org (로그인 필요)<br>영상 속 인증서·계정은 모두 테스트용입니다.</div>
+</div>
+<script>
+const C=[["0:00","표지"],["0:16","1. 로그인 · 대시보드"],["0:36","2. 엑셀 관리대장 업로드·검증"],["0:58","3. 수집 대상 · 수집 실행"],["1:19","4. 수집 승인 · 갱신본 자동 인식"],["1:39","5. PFX 비밀번호 보관함"],["1:54","6. 4단계 배포 승인"],["2:45","7. 서버 Agent가 nginx에 실제 적용"],["3:06","8. 오케스트레이터 · 알림"],["3:31","9. QA 챗봇 (Claude + 답변 검증)"],["3:49","10. 유지보수 Agent"],["4:25","마무리"]];
+const v=document.getElementById("v"),ch=document.getElementById("ch");
+C.forEach(([t,l])=>{const b=document.createElement("button");b.innerHTML=`<b>${t}</b>${l}`;b.onclick=()=>{const[m,s]=t.split(":");v.currentTime=+m*60+ +s;v.play()};ch.appendChild(b)});
+</script></body></html>
