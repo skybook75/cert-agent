@@ -10,6 +10,7 @@ v1(PoC) 대비 변경점
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
@@ -66,6 +67,16 @@ class CertError(Exception):
     pass
 
 
+
+def _load_pem_certs(data: bytes):
+    """여러 인증서가 든 PEM — cryptography 39 미만에는 load_pem_x509_certificates 가 없어 직접 나눈다."""
+    if hasattr(x509, "load_pem_x509_certificates"):
+        return x509.load_pem_x509_certificates(data)
+    blocks = re.findall(rb"-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----", data, re.S)
+    if not blocks:
+        raise ValueError("PEM 인증서가 없음")
+    return [x509.load_pem_x509_certificate(b) for b in blocks]
+
 def load_certs(path: Path, passwords: list[str]) -> list[x509.Certificate]:
     return load_certs_ex(path, passwords)[0]
 
@@ -91,7 +102,7 @@ def load_certs_ex(path: Path, passwords: list[str]):
         raise CertError("비밀번호 필요")
     try:
         if b"-----BEGIN CERTIFICATE" in data:
-            return x509.load_pem_x509_certificates(data), None
+            return _load_pem_certs(data), None
         if b"-----BEGIN" in data:
             raise CertError("인증서가 아닌 PEM(개인키 등)")
         return [x509.load_der_x509_certificate(data)], None

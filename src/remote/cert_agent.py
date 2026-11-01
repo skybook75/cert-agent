@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import os
 import platform
 import shutil
@@ -46,6 +47,16 @@ CONF_DIR = Path(os.environ.get("CERT_AGENT_HOME") or (r"C:\ProgramData\cert-agen
 EXTS = {".pem", ".crt", ".cer", ".der", ".pfx", ".p12"}
 LOG = []
 
+
+
+def _load_pem_certs(data: bytes):
+    """여러 인증서가 든 PEM — cryptography 39 미만에는 load_pem_x509_certificates 가 없어 직접 나눈다."""
+    if hasattr(x509, "load_pem_x509_certificates"):
+        return x509.load_pem_x509_certificates(data)
+    blocks = re.findall(rb"-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----", data, re.S)
+    if not blocks:
+        raise ValueError("PEM 인증서가 없음")
+    return [x509.load_pem_x509_certificate(b) for b in blocks]
 
 def log(msg):
     line = f"{datetime.now(timezone.utc).strftime('%H:%M:%S')} {msg}"
@@ -100,7 +111,7 @@ def certs_in(path: Path, passwords):
                 continue
         raise ValueError("비밀번호 필요")
     if b"-----BEGIN CERTIFICATE" in data:
-        return x509.load_pem_x509_certificates(data), None
+        return _load_pem_certs(data), None
     if b"-----BEGIN" in data:
         raise ValueError("인증서가 아닌 PEM(개인키 등)")
     return [x509.load_der_x509_certificate(data)], None
