@@ -39,7 +39,7 @@ section[role="tabpanel"] { display: flex; flex-direction: column; gap: 14px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
 .card h2 { margin: 0 0 10px; font-size: 15px; }
 .card h3 { margin: 14px 0 8px; font-size: 13.5px; }
-.tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.tiles { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
 .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
 button.tile { font: inherit; color: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; }
 button.tile:hover { border-color: var(--accent); } button.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -132,7 +132,7 @@ details.agentlog ol { margin: 6px 0 0; padding-left: 20px; font-family: var(--fo
 .auth label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 .err { color: var(--crit); font-size: 13px; min-height: 1.2em; }
 .check-ok { color: var(--ok); font-weight: 700; } .check-bad { color: var(--crit); font-weight: 700; }
-@media (max-width: 900px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .split, .cols2 { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } .split, .cols2 { grid-template-columns: 1fr; } }
 /* 좁은 화면: 표를 행마다 카드로 (머리글은 각 칸 왼쪽에 표시), 탭은 가로로 밀기 */
 @media (max-width: 640px) {
   .tbl table { min-width: 0 !important; }
@@ -458,6 +458,8 @@ function renderDash() {
   certs.forEach((c) => cnt[statusOf(c).status]++);
   const pend = S.data.discoveries.filter((d) => d.status === "대기").length;
   const unread = S.data.notifications.filter((n) => !n.read && !n.closed).length;
+  const now = Date.now();
+  const weekExpiring = certs.filter((c) => { const s = statusOf(c); return s.status === "D-7"; }).length;
   const urgent = certs.map((c) => ({ c, s: statusOf(c) })).filter((x) => ["D-7", "D-30", "만료"].includes(x.s.status) && x.c.renewal_status !== "완료")
     .sort((a, b) => urgency(a.s) - urgency(b.s) || (a.s.status === "만료" ? b.s.days - a.s.days : a.s.days - b.s.days)).slice(0, 8);
   const lastRun = [...S.data.scan_runs].sort((a, b) => String(b.started_at).localeCompare(a.started_at))[0];
@@ -478,6 +480,7 @@ function renderDash() {
   $("p-dash").innerHTML = `
     <div class="tiles">
       <button class="tile acc" data-tile="cert:"><b>${certs.length}</b><span>${role() === "담당자" ? "내 담당 인증서" : "관리 중 인증서"} →</span></button>
+      <button class="tile warn" data-tile="cert:D-7"><b>${weekExpiring}</b><span>7일 내 만료 · 이미 만료된 건 제외 →</span></button>
       <button class="tile crit" data-tile="cert:D-7"><b>${cnt["D-7"]}</b><span>D-7 (7일 이내) →</span></button>
       <button class="tile warn" data-tile="cert:D-30"><b>${cnt["D-30"]}</b><span>D-30 (30일 이내) →</span></button>
       <button class="tile crit" data-tile="cert:만료"><b>${cnt["만료"]}</b><span>만료 →</span></button>
