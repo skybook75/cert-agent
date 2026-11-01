@@ -184,7 +184,8 @@ try {
     const O = await page("owner"); await login(O, "own"); await tab(O, "qa");
     for (const q of ["shop.demo.test 인증서는 언제 만료되고 어떻게 갱신해?", "nginx에 갱신한 인증서를 적용한 뒤 확인할 것은?"]) {
       await O.fill("#qa-input", q); await O.click("#qa-send");
-      await O.waitForFunction(() => !document.getElementById("qa-send").disabled, null, { timeout: 180000 }); await sleep(1500);
+      await sleep(1500);
+      await O.waitForFunction(() => !/답변 준비 중|검증 중/.test(document.getElementById("chat").textContent) && !document.getElementById("qa-send").disabled, null, { timeout: 240000 }); await sleep(1500);
     }
     await shot(O, "QA챗봇_Claude_답변검증", "#p-qa .card");
     const chat = await O.textContent("#chat");

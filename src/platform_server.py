@@ -634,6 +634,8 @@ class Handler(BaseHTTPRequestHandler):
                         same = [certs[mine["cert_id"]]]
                     targets = sorted({loc.split(":", 1)[1] for x in same if x["id"] != want for loc in x.get("locations", []) if loc.startswith(host + ":")})
                     targets = [t for t in targets if t not in {l.split(":", 1)[1] for l in c.get("locations", []) if l.startswith(host + ":")} or t.endswith(("fullchain.pem", "cert.pem"))]  # 새 인증서 자신의 파일(incoming 등)은 제외
+                    live = [t for t in targets if not re.search(r"/(incoming|backup|old|archive)/", t.replace("\\", "/"), re.I)]
+                    targets = live or targets              # 새 인증서를 놓아 둔 incoming·백업 폴더는 교체 대상에서 제외
                     if targets:
                         tasks.append({"env_id": env["id"], "stage": stage, "subject_cn": env["subject_cn"], "cert_id": want, "pem": c["pem"],
                                       "fingerprint": c.get("fingerprint"), "targets": targets})
