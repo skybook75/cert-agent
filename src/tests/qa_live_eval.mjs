@@ -9,7 +9,10 @@ const C = require("../web/core.js");
 const set = require("./qa_eval_set.json");
 const guides = JSON.parse(fs.readFileSync(new URL("../guides/guides.json", import.meta.url)));
 const seed = JSON.parse(fs.readFileSync(new URL("../web/seed.json", import.meta.url)));
-const certs = Object.entries(seed.certificates).map(([id, c]) => ({ ...c, id }));
+// 평가 기준일(10-26) 시점의 등록 상태로 고정: 이후 시연에서 등록된 갱신본은 제외하고, 원래 건은 '진행 중'
+const certs = Object.entries(seed.certificates).map(([id, c]) => ({ ...c, id }))
+  .filter((c) => !(c.subject_cn === "pay.example.co.kr" && c.not_after > "2027"))
+  .map((c) => (c.subject_cn === "pay.example.co.kr" ? { ...c, renewal_status: "진행 중" } : c));
 const NOW = Date.parse("2026-10-26T09:00:00+09:00");            // 평가 기준일 고정(만료 구간 판정 재현)
 const KEY = process.env.ANTHROPIC_API_KEY, MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
 const NAME = process.argv[2] || "qa_live";
