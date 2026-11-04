@@ -19,6 +19,12 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
+def _na(c):  # cryptography 42+ / 이전 버전 모두 지원
+    from datetime import timezone as _tz
+    return c.not_valid_after_utc if hasattr(c, "not_valid_after_utc") else c.not_valid_after.replace(tzinfo=_tz.utc)
+
+
+
 HERE = Path(__file__).resolve().parent
 PFX_PASSWORD = b"Test#1234"      # 테스트 전용
 CASES = [  # 파일명, CN, 잔여일, 형식, 키
@@ -84,7 +90,7 @@ def build(dest: Path):
     ws = wb.active
     ws.title = "관리대장"
     ws.append(["인증서명(CN)", "발급기관", "만료일", "관리담당자", "담당자 이메일", "업무시스템", "일련번호", "갱신상태"])
-    exp = lambda cn, plus=0: (made[cn].not_valid_after_utc + timedelta(hours=9) + timedelta(days=plus)).date()   # noqa: E731
+    exp = lambda cn, plus=0: (_na(made[cn]) + timedelta(hours=9) + timedelta(days=plus)).date()   # noqa: E731
     ws.append(["portal.example.co.kr", "PoC Test CA", exp("portal.example.co.kr"), "김담당", "kim@example.co.kr", "포털",
                format(made["portal.example.co.kr"].serial_number, "X"), "미조치"])
     ws.append(["api.example.co.kr", "PoC Test CA", exp("api.example.co.kr", 365), "이연동", "lee@example.co.kr", "대외연동", None, "예정"])
@@ -100,7 +106,7 @@ def renew(dest: Path, cn: str, days: int):
     key, cert = make(cn, days, "rsa")
     p = dest / "pem" / "검증" / f"{cn.split('.')[0]}-renewed.crt"
     write(p, key, cert, "pem")
-    print(json.dumps({"file": str(p), "not_after": cert.not_valid_after_utc.isoformat()}))
+    print(json.dumps({"file": str(p), "not_after": _na(cert).isoformat()}))
 
 
 def bulk(dest: Path, n: int):
@@ -121,7 +127,7 @@ def bulk(dest: Path, n: int):
         sub = root / f"server{i % 10:02d}"
         sub.mkdir(exist_ok=True)
         write(sub / f"{cn}.{ext}", key, cert, fmt)
-        expected.append({"cn": cn, "days": days, "not_after": cert.not_valid_after_utc.isoformat(), "fmt": fmt})
+        expected.append({"cn": cn, "days": days, "not_after": _na(cert).isoformat(), "fmt": fmt})
     (dest / "bulk_expected.json").write_text(json.dumps(expected, ensure_ascii=False, indent=1), encoding="utf-8")
     print(json.dumps({"dir": str(root), "count": n}))
 

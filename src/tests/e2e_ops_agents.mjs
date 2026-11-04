@@ -23,7 +23,7 @@ const start = () => { srv = spawn("python3", [path.join(COPY, "platform_server.p
   { cwd: COPY, stdio: "ignore", env: { ...process.env, CERT_LLM_MOCK: MOCK } }); };
 start(); await sleep(1500);
 const browser = await chromium.launch();
-const ctx = await browser.newContext(); await ctx.route(/fonts\./, (r) => r.abort());
+const ctx = await browser.newContext({ bypassCSP: true }); await ctx.route(/fonts\./, (r) => r.abort());
 const p = await ctx.newPage(); p.on("pageerror", (e) => console.log("pageerror", e.message));
 const settle = async () => { await p.waitForLoadState("networkidle"); await sleep(300); };
 const api = (method, url, body) => p.evaluate(async ({ method, url, body }) => { const me = await (await fetch("api/me")).json().catch(() => ({}));

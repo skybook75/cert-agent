@@ -20,6 +20,12 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
+def _na(c):  # cryptography 42+ / 이전 버전 모두 지원
+    from datetime import timezone as _tz
+    return c.not_valid_after_utc if hasattr(c, "not_valid_after_utc") else c.not_valid_after.replace(tzinfo=_tz.utc)
+
+
+
 NOW = datetime.now(timezone.utc)
 KST = timezone(timedelta(hours=9))
 PW = {"tomcat": "Tomcat!2026", "iis_portal": "Iis#Portal9", "iis_hr": "Hr-Unknown-77"}   # 테스트 전용 비밀번호
@@ -63,7 +69,7 @@ def main(dest: Path, renew=False):
     if renew:
         k, c = leaf("www.skax-demo.co.kr", "Sectigo RSA Domain Validation Secure Server CA", 395, sans=["www.skax-demo.co.kr", "skax-demo.co.kr"], life=396)
         (S / "web02-apache/etc/httpd/ssl/www.skax-demo.co.kr_2027.crt").write_bytes(pem(c))
-        print(json.dumps({"renewed": "www.skax-demo.co.kr", "not_after": c.not_valid_after_utc.isoformat()}))
+        print(json.dumps({"renewed": "www.skax-demo.co.kr", "not_after": _na(c).isoformat()}))
         return
     shutil.rmtree(dest, ignore_errors=True)
     inter = ca_cert("DigiCert Global G2 TLS RSA SHA256 2020 CA1")
@@ -105,7 +111,7 @@ def main(dest: Path, renew=False):
 
     # 엑셀 관리대장 (담당자가 손으로 관리해 온 모습: 날짜 형식 제각각·오타·누락·중복·이미 없는 서버)
     def kdate(c, shift=0):
-        return (c.not_valid_after_utc.astimezone(KST) + timedelta(days=shift)).strftime("%Y-%m-%d")
+        return (_na(c).astimezone(KST) + timedelta(days=shift)).strftime("%Y-%m-%d")
     head = ["No", "인증서명(CN)", "발급기관", "만료일", "관리담당자", "담당자 이메일", "업무시스템", "일련번호", "갱신상태", "비고"]
     rows = [
         [1, "shop.skax-demo.co.kr", "DigiCert", kdate(c), "김민수", "minsu.kim@skax-demo.co.kr", "쇼핑몰", format(c.serial_number, "X"), "미조치", ""],

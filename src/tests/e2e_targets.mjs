@@ -67,7 +67,8 @@ try {
   // SSH 방식: 접속 불가 주소 → 실패 사유 기록
   const sshRow = O.locator("#p-targets tr", { hasText: "레거시 WAS" });
   await sshRow.locator("[data-trun]").click(); await settle(O); await sleep(500);
-  const sres = (await api(O, "GET", "api/targets")).body.find((t) => t.method === "ssh");
+  let sres;
+  for (let i = 0; i < 40; i++) { sres = (await api(O, "GET", "api/targets")).body.find((t) => t.method === "ssh"); if (/실패|성공|수집/.test(sres.last_result || "")) break; await sleep(500); }
   ok("SSH 방식 실행: 실패하면 사유를 최근 결과에 기록(서비스 영향 없음)", /실패/.test(sres.last_result || ""), sres.last_result);
   // 수정: 비밀번호 비우면 유지
   await sshRow.locator("[data-tedit]").click(); await settle(O); await O.fill("#tg-memo", "운영 WAS 3호기"); await O.click("#tg-form button[type=submit]"); await settle(O);
