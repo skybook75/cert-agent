@@ -21,7 +21,9 @@ import agents  # noqa: E402
 KST = timezone(timedelta(hours=9))
 W = Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/cert_kpi")
 W.mkdir(parents=True, exist_ok=True)
-subprocess.run([sys.executable, str(ROOT / "tests" / "make_fixture.py"), str(W), "--bulk", "100"], check=True, capture_output=True)
+import os
+BULK = int(os.environ.get("KPI_BULK", "100"))
+subprocess.run([sys.executable, str(ROOT / "tests" / "make_fixture.py"), str(W), "--bulk", str(BULK)], check=True, capture_output=True)
 expected = json.loads((W / "bulk_expected.json").read_text(encoding="utf-8"))
 folder = W / "bulk"
 
@@ -42,6 +44,8 @@ for i in range(3):
     db = W / f"kpi{i}.db"
     db.unlink(missing_ok=True)
     s = agents.Store(agents.resolve_db(str(db)))
+    if s.kind == "postgresql":                      # 매 회 빈 DB에서 측정
+        s.conn.query("DELETE FROM docs")
     t0 = time.perf_counter()
     r = agents.collect(s, folder, ["Test#1234"], [str(folder)])
     t1 = time.perf_counter()
@@ -74,7 +78,7 @@ dup = agents.notify(s)["created"]
 
 # KPI 3: 업무시간 (기획서 기준값 사용)
 baseline_min = 60.0                     # 기획서: 회당 약 1시간 (연 130건 × 1h = 130시간)
-auto_s = med / 100                      # 인증서 1건당 Agent 자동 처리 시간(실측)
+auto_s = med / BULK                      # 인증서 1건당 Agent 자동 처리 시간(실측)
 human_steps = ["대시보드 알림 확인", "수집 결과(대장 대조 포함) 검토", "승인 클릭"]
 human_min = 5.0                         # 화면 확인·승인 시간 가정(1건당 5분, 사용자 실측 전 추정)
 after_min = human_min + auto_s / 60
@@ -82,7 +86,7 @@ reduction = (baseline_min - after_min) / baseline_min * 100
 
 res = {
     "measured_at": now.isoformat(timespec="seconds"),
-    "kpi1": {"target": "인증서 100개 60초 이내", "runs": runs, "median_total_s": med, "pass": med < 60 and runs[0]["pending"] == 100},
+    "kpi1": {"target": "인증서 100개 60초 이내", "runs": runs, "median_total_s": med, "pass": med < 60 and runs[0]["pending"] == BULK, "certs": BULK, "db": s.describe()},
     "kpi2": {"target": "D-30·D-7 알림 커버리지 100%", "expected": len(need), "hit": hit, "coverage_pct": round(hit / len(need) * 100, 1),
              "by_level": by_level, "false_alerts": len(false_alerts), "duplicate_on_rerun": dup, "pass": hit == len(need) and not false_alerts and dup == 0},
     "kpi3": {"target": "업무시간 50% 이상 단축", "baseline_min_per_case": baseline_min, "after_min_per_case": round(after_min, 2),
@@ -90,6 +94,6 @@ res = {
              "reduction_pct": round(reduction, 1), "annual_hours_before": 130, "annual_hours_after": round(130 * after_min / 60, 1),
              "note": "자동 처리 시간은 실측, 화면 확인 5분은 추정(실사용자 측정은 E2E 서비스 운영 단계에서 수행)", "pass": reduction >= 50},
 }
-(ROOT / "results" / "kpi.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+(ROOT / "results" / ("kpi.json" if BULK == 100 else f"kpi_{BULK}.json")).write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
 print(json.dumps({k: (v if k == "measured_at" else {kk: vv for kk, vv in v.items() if kk != "runs"}) for k, v in res.items()}, ensure_ascii=False, indent=1))
 print("runs:", runs)
