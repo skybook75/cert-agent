@@ -1,5 +1,5 @@
 {
- "at": "2026-11-04T19:32:51.381Z",
+ "at": "2026-11-04T20:34:23.151Z",
  "pass": 59,
  "total": 59,
  "steps": {
@@ -77,7 +77,7 @@
   {
    "name": "DB에는 암호문만(AES-256-GCM), 평문·키 없음",
    "pass": true,
-   "detail": "평문 0건 · 키 0건 · AES-256-GCM nonce RcqArC9S/X15jQd3"
+   "detail": "평문 0건 · 키 0건 · AES-256-GCM nonce PEVrz5tUkL5GRupH"
   },
   {
    "name": "API로 평문·암호문 조회 불가",
@@ -277,7 +277,7 @@
   {
    "name": "가이드 업로드(서버, .md·PDF): 관리자 저장·RAG 반영, 조회자 차단",
    "pass": true,
-   "detail": "검색 문단 41개 · 조회자 403"
+   "detail": "검색 문단 42개 · 조회자 403"
   },
   {
    "name": "미로그인 401 · CSRF 없는 요청 403 · 직접 DB 쓰기 경로 없음",

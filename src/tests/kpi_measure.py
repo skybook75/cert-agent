@@ -41,7 +41,7 @@ runs = []
 for i in range(3):
     db = W / f"kpi{i}.db"
     db.unlink(missing_ok=True)
-    s = agents.Store(str(db))
+    s = agents.Store(agents.resolve_db(str(db)))
     t0 = time.perf_counter()
     r = agents.collect(s, folder, ["Test#1234"], [str(folder)])
     t1 = time.perf_counter()
@@ -60,7 +60,7 @@ def level(na):
     days = (na.astimezone(KST).date() - now.astimezone(KST).date()).days
     return "만료" if na <= now else "D-7" if days <= 7 else "D-30" if days <= 30 else None
 exp = {e["cn"]: level(e["not_after"]) for e in expected}
-s = agents.Store(str(W / "kpi0.db"))
+s = agents.Store(agents.resolve_db(str(W / "kpi0.db")))
 certs = {c["id"]: c["subject_cn"] for c in s.list("certificates")}
 got = {}
 for nn in s.list("notifications"):
