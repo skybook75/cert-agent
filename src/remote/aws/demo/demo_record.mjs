@@ -226,7 +226,7 @@ const SCENES = {
   async qa() {
     const O = await open("qa", "owner"); await login(O, "own"); mark(O, "start");
     await htab(O, "qa"); await sleep(600);
-    await htype(O, O.p.locator("#qa-input"), "shop.demo.test 인증서는 언제 만료되고, 갱신하면 서버에는 어떻게 적용돼?", 60);
+    await htype(O, O.p.locator("#qa-input"), "Let's Encrypt 자동 갱신이 실패했을 때 확인할 것은?", 60);
     await hclick(O, O.p.locator("#qa-send")); await sleep(1500); mark(O, "wait_start");
     await O.p.waitForFunction(() => !/답변 준비 중|검증 중/.test(document.getElementById("chat").textContent) && !document.getElementById("qa-send").disabled, null, { timeout: 240000 }).catch(() => {});
     await sleep(800); mark(O, "wait_end");
@@ -244,7 +244,7 @@ const SCENES = {
     await A.p.waitForFunction(() => /자가 진단 결과/.test(document.querySelector("#mchat")?.textContent || ""), null, { timeout: 60000 }).catch(() => {});
     await sleep(1200); await moveTo(A, A.p.locator("#mchat")); await scrollBy(A, 240); await sleep(3000);
     mark(A, "req");
-    const req = process.env.MAINT_REQ || "대시보드의 '이번 주 만료' 타일 제목을 '7일 내 만료'로 바꾸고, 기존 D-7 타일과 헷갈리지 않게 설명 문구를 '이미 만료된 건 제외'로 달아줘";
+    const req = process.env.MAINT_REQ || "대시보드의 '7일 내 만료 · 이미 만료된 건 제외' 타일 문구를 '7일 내 만료 예정'으로 바꿔줘";
     await htype(A, A.p.locator("#mchat-in"), req, 40); await hclick(A, A.p.locator("#mchat-send")); mark(A, "wait_start");
     await A.p.waitForFunction(() => /반영했습니다|반영하지 않았|보류/.test(document.querySelector("#mchat")?.lastElementChild?.textContent || ""), null, { timeout: 600000 }).catch(() => {});
     await sleep(2500);

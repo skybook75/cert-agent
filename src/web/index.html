@@ -290,7 +290,7 @@ async function init() {
     S.health = await r.json(); S.mode = "server"; S.llm = S.health.llm;
   } catch { S.mode = "artifact"; }
   if (S.mode === "server") {
-    $("conn").classList.add("ok"); $("conn-text").textContent = `서버 · ${S.llm ? "Claude 연결" : "Claude 키 없음(검색형)"}`;
+    $("conn").classList.add("ok"); $("conn-text").textContent = `서버 · ${S.health.db || "DB"} · ${S.llm ? "Claude 연결" : "Claude 키 없음(검색형)"}`;
     if (S.health.setup_needed) return showAuth("setup");
     try { const me = await api("GET", "api/me"); S.user = me.user; S.csrf = me.csrf; } catch { return showAuth("login"); }
     if (S.user.must_change) return showAuth("change");
