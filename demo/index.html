@@ -15,13 +15,13 @@ video{width:100%;border-radius:12px;background:#000;box-shadow:0 6px 24px rgba(0
 </style></head><body><div class="wrap">
 <div class="k">SK AX AI TALENT LAB · 2026 AI MASTER PROJECT</div>
 <h1>인증서 관리 AI Agent — 실제 동작 시연</h1>
-<p class="sub">AWS EC2 실서버 4대(플랫폼 · nginx · Tomcat · IIS)에서 실제 화면을 조작해 녹화했습니다. 대기 구간은 빨리 감기로 줄였고, 음성 설명과 자막이 들어 있습니다. (4분 57초 · 양필규 07003)</p>
+<p class="sub">AWS EC2 실서버 4대(플랫폼 · nginx · Tomcat · IIS)에서 실제 화면을 조작해 녹화했습니다. 대기 구간은 빨리 감기로 줄였고, 음성 설명과 자막이 들어 있습니다. (4분 56초 · 양필규 07003)</p>
 <video id="v" controls preload="metadata" playsinline poster="poster.jpg"><source src="cert-agent-demo.mp4" type="video/mp4"></video>
 <div class="ch" id="ch"></div>
 <div class="foot">테스트 결과·화면 증적: <a href="../test-report/">테스트 보고서</a> · 운영 플랫폼: https://certagent-ai.duckdns.org (로그인 필요)<br>영상 속 인증서·계정은 모두 테스트용입니다.</div>
 </div>
 <script>
-const C=[["0:00","표지"],["0:15","1. 로그인 · 대시보드"],["0:36","2. 엑셀 관리대장 업로드·검증"],["0:59","3. 수집 대상 · 수집 실행"],["1:20","4. 수집 승인 · 갱신본 자동 인식"],["1:40","5. PFX 비밀번호 보관함"],["1:55","6. 4단계 배포 승인"],["2:45","7. 서버 Agent가 nginx에 실제 적용"],["3:08","8. 오케스트레이터 · 알림"],["3:36","9. QA 챗봇 (Claude + 답변 검증)"],["3:56","10. 유지보수 AI"],["4:41","마무리"]];
+const C=[["0:00","표지"],["0:15","1. 로그인 · 대시보드"],["0:39","2. 엑셀 관리대장 업로드·검증"],["1:00","3. 수집 대상 · 수집 실행"],["1:22","4. 수집 승인 · 갱신본 자동 인식"],["1:41","5. PFX 비밀번호 보관함"],["1:56","6. 4단계 배포 승인"],["2:47","7. 서버 Agent가 nginx에 실제 적용"],["3:10","8. 오케스트레이터 · 알림"],["3:37","9. QA 챗봇 (Claude + 답변 검증)"],["4:01","10. 유지보수 AI"],["4:40","마무리"]];
 const v=document.getElementById("v"),ch=document.getElementById("ch");
 C.forEach(([t,l])=>{const b=document.createElement("button");b.innerHTML=`<b>${t}</b>${l}`;b.onclick=()=>{const[m,s]=t.split(":");v.currentTime=+m*60+ +s;v.play()};ch.appendChild(b)});
 </script></body></html>
