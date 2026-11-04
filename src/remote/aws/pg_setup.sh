@@ -54,14 +54,14 @@ done
 sed -i 's# --db /var/lib/cert-platform/platform.db##' /etc/systemd/system/cert-orch.service 2>/dev/null || true
 
 # 매일 백업 (pg_dump 사용자 지정 형식, 14일 보관)
-mkdir -p /var/lib/cert-platform/backup && chown postgres /var/lib/cert-platform/backup && chmod 700 /var/lib/cert-platform/backup
+install -d -o postgres -g postgres -m 700 /var/lib/pgsql/backups
 cat > /etc/systemd/system/cert-pgbackup.service <<'EOF'
 [Unit]
 Description=Cert platform PostgreSQL daily backup
 [Service]
 Type=oneshot
 User=postgres
-ExecStart=/bin/bash -c 'pg_dump -Fc certplatform -f /var/lib/cert-platform/backup/certplatform-$(date +%%Y%%m%%d).dump && find /var/lib/cert-platform/backup -name "*.dump" -mtime +14 -delete'
+ExecStart=/bin/bash -c 'pg_dump -Fc certplatform -f /var/lib/pgsql/backups/certplatform-$(date +%%Y%%m%%d).dump && find /var/lib/pgsql/backups -name "*.dump" -mtime +14 -delete'
 EOF
 cat > /etc/systemd/system/cert-pgbackup.timer <<'EOF'
 [Unit]
@@ -74,9 +74,9 @@ WantedBy=timers.target
 EOF
 systemctl daemon-reload
 systemctl enable -q --now cert-pgbackup.timer
-systemctl start cert-pgbackup.service
 systemctl start cert-platform
+systemctl start cert-pgbackup.service || echo 'BACKUP_FIRST_RUN_FAILED'
 sleep 5
 echo "health: $(curl -s -m5 localhost:8000/api/health)"
-echo "backup: $(ls -la /var/lib/cert-platform/backup | tail -1)"
+echo "backup: $(ls -la /var/lib/pgsql/backups | tail -1)"
 echo "pg: $(sudo -u postgres psql -tAc "select version()" | cut -c1-40) · docs $(sudo -u postgres psql -d certplatform -tAc 'select count(*) from docs')"
