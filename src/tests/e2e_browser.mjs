@@ -114,10 +114,11 @@ try {
   const pendAll = (await apiIn(A, "GET", "api/db/discoveries")).body.filter((d) => d.status === "대기").length;
   ok("수집 Agent: 13개 파일 → 승인 대기 누적 10건, 실패 2건(재실행해도 중복 없음)", out.includes("파일 13개") && out.includes("승인 대기 1건") && out.includes("이미 관리 중 10건") && out.includes("실패 2건") && pendAll === 10, `승인 대기 누적 ${pendAll}건 · ${out.slice(0, 90)}`); count("수집 실행");
   ok("보관함 비밀번호로 PFX 열기(파일 범위 자동 채움 → 교체 후 성공)", pre === "검증/pay-d7.pfx" && out.includes("보관함 비밀번호로 연 PFX 1개"), pre);
-  const pwLeak = execFileSync("sh", ["-c", `grep -c -a -e "Test#1234" -e "Wrong#999" ${path.join(W, "p.db")} || true`]).toString().trim();
+  const DUMP = (coll = "") => execFileSync("python3", ["tools/dbdump.py", path.join(W, "p.db"), ...(coll ? [coll] : [])], { cwd: ROOT }).toString();
+  const pwLeak = String((DUMP().match(/Test#1234|Wrong#999/g) || []).length);
   const secList = await apiIn(A, "GET", "api/secrets"), secRaw = await apiIn(A, "GET", "api/db/secrets");
-  const enc = JSON.parse(execFileSync("python3", ["-c", `import sqlite3,json;print([json.loads(r[0]) for r in sqlite3.connect(${JSON.stringify(path.join(W, "p.db"))}).execute("select data from docs where coll='secrets'")][0]['enc'] and json.dumps([json.loads(r[0]) for r in sqlite3.connect(${JSON.stringify(path.join(W, "p.db"))}).execute("select data from docs where coll='secrets'")][0]['enc']))`]).toString());
-  const keyInDb = execFileSync("sh", ["-c", `grep -c -a "$(cat ${path.join(W, "keys", "vault.key")})" ${path.join(W, "p.db")} || true`]).toString().trim();
+  const enc = JSON.parse(DUMP("secrets").trim().split("\n")[0]).enc;
+  const keyInDb = DUMP().includes(fs.readFileSync(path.join(W, "keys", "vault.key"), "utf8").trim()) ? "1" : "0";
   ok("DB에는 암호문만(AES-256-GCM), 평문·키 없음", pwLeak === "0" && keyInDb === "0" && enc.alg === "AES-256-GCM" && enc.ct && enc.nonce, `평문 ${pwLeak}건 · 키 ${keyInDb}건 · ${enc.alg} nonce ${enc.nonce}`);
   ok("API로 평문·암호문 조회 불가", secRaw.status === 403 && !JSON.stringify(secList.body).includes("Test#1234") && !JSON.stringify(secList.body).includes(enc.ct) && secList.body.items[0].use_count === 1,
     `api/db/secrets ${secRaw.status} · 목록 항목 ${Object.keys(secList.body.items[0]).join(",")}`);
@@ -332,7 +333,7 @@ try {
   ok("로그인 5회 실패 → 잠금", codes.slice(0, 5).every((c) => c === 401) && codes[5] === 429, codes.join(","));
   const hr = await fetch(BASE); await hr.text(); const hdr = hr.headers;
   ok("보안 헤더(CSP·X-Frame-Options·nosniff)", hdr.get("content-security-policy")?.includes("frame-ancestors 'none'") && hdr.get("x-frame-options") === "DENY" && hdr.get("x-content-type-options") === "nosniff");
-  const hashOnly = py("-c", `import sqlite3;c=sqlite3.connect(${JSON.stringify(path.join(W, "p.db"))});print(sum(1 for (d,) in c.execute("select data from docs where coll='users'") if 'Temp1234' in d or 'Admin1234' in d))`).trim();
+  const hashOnly = String(execFileSync("python3", ["tools/dbdump.py", path.join(W, "p.db"), "users"], { cwd: ROOT }).toString().split("\n").filter((l) => /Temp1234|Admin1234/.test(l)).length);
   ok("사용자 비밀번호는 해시만 저장", hashOnly === "0", `평문 ${hashOnly}건`);
 
   // ───────── 16. 감사 로그

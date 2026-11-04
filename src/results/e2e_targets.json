@@ -1,0 +1,57 @@
+[
+ {
+  "name": "담당자: 수집 대상 2개 등록(서버 Agent · SSH 접속), 비밀번호는 암호화 표시만",
+  "pass": true,
+  "detail": "수집 대상 2개 (내가 등록)"
+ },
+ {
+  "name": "DB에 접속 비밀번호 평문 없음(AES-256-GCM)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "API 응답에 암호문도 내보내지 않음(has_secret 만)",
+  "pass": true,
+  "detail": "레거시 WAS(SSH):true, 쇼핑몰 웹:false"
+ },
+ {
+  "name": "권한: 다른 담당자는 목록 0개·삭제 불가(404), 관리자는 전체(등록자 표시)",
+  "pass": true,
+  "detail": "own2 0개 · 삭제 404 · admin 2개"
+ },
+ {
+  "name": "서버 Agent가 플랫폼에 등록된 경로를 받아 수집(로컬 설정 불필요)",
+  "pass": true,
+  "detail": "업로드: 파일 1개 → 승인 대기 2건(갱신본 0) · 이미 관리 중 0 · 실패 0"
+ },
+ {
+  "name": "'수집 실행' → 요청 대기 → Agent poll 이 가져가 실행 → 최근 수집 결과 표시",
+  "pass": true,
+  "detail": " 쇼핑몰 웹 web01Linux 서버 Agent 연결됨 /tmp/cert_targets/web01/etc/nginx/ssl 2026-11-04 19:29수집 1개 · 승인 대기 0 · 실패 0 수집 실행수정삭제"
+ },
+ {
+  "name": "같은 요청은 한 번만 실행",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "SSH 방식 실행: 실패하면 사유를 최근 결과에 기록(서비스 영향 없음)",
+  "pass": true,
+  "detail": "접속·수집 실패: SSH 수집에는 paramiko 가 필요합니다 (서버에 pip install paramiko)"
+ },
+ {
+  "name": "수정 시 비밀번호 칸을 비우면 기존 암호화 비밀번호 유지",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "검토자는 수집 대상 탭·API 없음(403)",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "감사 로그: 등록·수정·수집 실행",
+  "pass": true,
+  "detail": "수집 대상 등록, 수집 실행 요청, 수집 실행(SSH), 수집 대상 수정, 수집 실행"
+ }
+]

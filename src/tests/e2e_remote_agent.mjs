@@ -59,7 +59,7 @@ try {
   console.log(o1 + o2);
   ok("web01 수집: 체인 2건(서버+중간 CA) 승인 대기, 개인키 파일은 대상 아님", /승인 대기 2건/.test(o1), o1.match(/업로드:[^\n]*/)?.[0]);
   ok("was01 수집: PFX 비밀번호를 Agent 공개키로 암호화 전달받아 열기", /비밀번호 후보\(암호화 전달\) 수신/.test(o2) && /승인 대기 1건/.test(o2), o2.match(/업로드:[^\n]*/)?.[0]);
-  const dbTxt = fs.readFileSync(path.join(W, "p.db")).toString("latin1");
+  const dbTxt = execFileSync("python3", ["tools/dbdump.py", path.join(W, "p.db")], { cwd: ROOT }).toString();
   ok("DB·Agent 로그에 비밀번호 평문 없음", !dbTxt.includes("Tomcat!2026") && !o2.includes("Tomcat!2026"));
   await A.reload(); await settle(A); await tab(A, "수집 승인");
   const locs = await A.textContent("#p-disc");

@@ -1,6 +1,6 @@
 """인증서 관리 플랫폼 — PC 실행용 저장소와 Agent.
 
-  Store          SQLite 문서 저장소 (collection/id → JSON). 웹 화면과 Agent가 같은 데이터를 쓴다.
+  Store          문서 저장소 (collection/id → JSON). 운영 PostgreSQL(JSONB) / PC·테스트 SQLite. 웹 화면과 Agent가 같은 데이터를 쓴다.
   collect()      수집 Agent: 승인된 폴더 스캔 → 새 인증서를 '승인 대기'로 등록 (자동 반영 안 함)
   notify()       알림 Agent: D-30·D-7·만료 알림 + 이메일 초안 (단계별 1회)
   ask_claude()   QA Agent의 LLM 호출 (Anthropic Messages API, 키는 환경변수 ANTHROPIC_API_KEY)
@@ -37,15 +37,57 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def is_pg(db) -> bool:
+    return str(db).startswith(("postgresql://", "postgres://"))
+
+
+def resolve_db(db):
+    """CERT_TEST_DB 가 있으면 그 DB를 쓴다(같은 자동 테스트를 SQLite·PostgreSQL 양쪽에서 돌리기 위한 테스트 전용 설정)."""
+    return os.environ.get("CERT_TEST_DB") or db
+
+
 class Store:
-    """스레드 안전: 웹 서버가 요청을 동시에 처리하므로 연결 하나를 잠금으로 보호한다."""
+    """문서 저장소(collection/id → JSON). 운영은 PostgreSQL(JSONB), PC·테스트는 SQLite 파일 — 같은 인터페이스.
+    스레드 안전: 웹 서버가 요청을 동시에 처리하므로 연결 하나를 잠금으로 보호한다."""
     def __init__(self, path):
         import threading
         self.lock = threading.RLock()
-        self.conn = sqlite3.connect(path, check_same_thread=False)
-        self.conn.execute("CREATE TABLE IF NOT EXISTS docs (coll TEXT, id TEXT, data TEXT, updated_at TEXT, "
-                          "PRIMARY KEY (coll, id))")
-        self.conn.commit()
+        self.path = str(path)
+        self.kind = "postgresql" if is_pg(path) else "sqlite"
+        if self.kind == "postgresql":
+            self._pg_connect()
+            self.conn.query("CREATE TABLE IF NOT EXISTS docs (coll TEXT NOT NULL, id TEXT NOT NULL, data JSONB NOT NULL, "
+                            "updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (coll, id))")
+        else:
+            self.conn = sqlite3.connect(path, check_same_thread=False)
+            self.conn.execute("CREATE TABLE IF NOT EXISTS docs (coll TEXT, id TEXT, data TEXT, updated_at TEXT, "
+                              "PRIMARY KEY (coll, id))")
+            self.conn.commit()
+
+    def _pg_connect(self):
+        import pgwire
+        self.conn = pgwire.connect(self.path)
+
+    def _q(self, pg_sql, lite_sql, params, fetch=False):
+        """PostgreSQL 은 $n, SQLite 는 ? 자리표시자. 연결이 끊기면(DB 재시작 등) 한 번 다시 연결해 재시도."""
+        with self.lock:
+            if self.kind == "postgresql":
+                try:
+                    return self.conn.query(pg_sql, params)
+                except (ConnectionError, OSError):
+                    self._pg_connect()
+                    return self.conn.query(pg_sql, params)
+            cur = self.conn.execute(lite_sql, params)
+            if fetch:
+                return cur.fetchall()
+            self.conn.commit()
+            return []
+
+    def describe(self) -> str:
+        if self.kind == "postgresql":
+            v = (self.conn.params.get("server_version") or "").split(" ")[0]
+            return f"PostgreSQL {v}".strip()
+        return "SQLite"
 
     @staticmethod
     def _check(coll, id_=None):
@@ -56,15 +98,15 @@ class Store:
 
     def list(self, coll):
         self._check(coll)
-        with self.lock:
-            rows = self.conn.execute("SELECT id, data FROM docs WHERE coll=? ORDER BY id", (coll,)).fetchall()
+        rows = self._q("SELECT id, data::text FROM docs WHERE coll=$1 ORDER BY id",
+                       "SELECT id, data FROM docs WHERE coll=? ORDER BY id", (coll,), fetch=True)
         return [dict(json.loads(d), id=i) for i, d in rows]
 
     def get(self, coll, id_):
         self._check(coll, id_)
-        with self.lock:
-            r = self.conn.execute("SELECT data FROM docs WHERE coll=? AND id=?", (coll, id_)).fetchone()
-        return dict(json.loads(r[0]), id=id_) if r else None
+        r = self._q("SELECT data::text FROM docs WHERE coll=$1 AND id=$2",
+                    "SELECT data FROM docs WHERE coll=? AND id=?", (coll, id_), fetch=True)
+        return dict(json.loads(r[0][0]), id=id_) if r else None
 
     def set(self, coll, id_, data):
         self._check(coll, id_)
@@ -72,10 +114,10 @@ class Store:
         raw = json.dumps(body, ensure_ascii=False)
         if len(raw.encode("utf-8")) > (1024 if coll == "guides" else 256) * 1024:
             raise ValueError("문서가 너무 큽니다")
-        with self.lock:
-            self.conn.execute("INSERT INTO docs VALUES (?,?,?,?) ON CONFLICT(coll,id) DO UPDATE SET data=excluded.data, "
-                              "updated_at=excluded.updated_at", (coll, id_, raw, now_iso()))
-            self.conn.commit()
+        self._q("INSERT INTO docs (coll, id, data, updated_at) VALUES ($1,$2,$3::jsonb,$4::timestamptz) "
+                "ON CONFLICT (coll, id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at",
+                "INSERT INTO docs VALUES (?,?,?,?) ON CONFLICT(coll,id) DO UPDATE SET data=excluded.data, "
+                "updated_at=excluded.updated_at", (coll, id_, raw, now_iso()))
 
     def update(self, coll, id_, data):
         with self.lock:
@@ -85,9 +127,11 @@ class Store:
 
     def delete(self, coll, id_):
         self._check(coll, id_)
-        with self.lock:
-            self.conn.execute("DELETE FROM docs WHERE coll=? AND id=?", (coll, id_))
-            self.conn.commit()
+        self._q("DELETE FROM docs WHERE coll=$1 AND id=$2", "DELETE FROM docs WHERE coll=? AND id=?", (coll, id_))
+
+    def counts(self) -> dict:
+        rows = self._q("SELECT coll, count(*) FROM docs GROUP BY coll", "SELECT coll, count(*) FROM docs GROUP BY coll", (), fetch=True)
+        return {c: int(n) for c, n in rows}
 
 
 # ───────────────────────────── 수집 Agent
@@ -443,12 +487,12 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["collect", "notify"])
     ap.add_argument("folder", nargs="?")
-    ap.add_argument("--db", default=str(BASE / "platform.db"))
+    ap.add_argument("--db", default=os.environ.get("CERT_DB") or str(BASE / "platform.db"))
     ap.add_argument("--password", action="append", default=[], help="일회성 PFX 비밀번호(저장 안 함). 평소에는 플랫폼 보관함에 등록한 비밀번호를 씀")
     ap.add_argument("--vault-key", help="보관함 키 파일 경로 (기본: %%APPDATA%%\\cert_platform\\vault.key)")
     ap.add_argument("--send", action="store_true", help="notify 후 발송하지 않은 알림을 SMTP 로 발송")
     a = ap.parse_args()
-    s = Store(a.db)
+    s = Store(resolve_db(a.db))
     if a.cmd == "collect":
         import vault as vault_mod
         print(json.dumps(collect(s, a.folder, a.password, [a.folder], vault=vault_mod.Vault(a.vault_key)), ensure_ascii=False, indent=1))

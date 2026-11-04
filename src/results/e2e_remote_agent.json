@@ -1,0 +1,92 @@
+[
+ {
+  "name": "서버 Agent 등록(토큰 1회 표시, 목록엔 해시도 안 보임)",
+  "pass": true,
+  "detail": "was01:-, web01:prod"
+ },
+ {
+  "name": "잘못된 토큰 거부",
+  "pass": true,
+  "detail": "401"
+ },
+ {
+  "name": "보관함 등록(호스트/경로 범위)",
+  "pass": true,
+  "detail": "was01/tmp/cert_remote/was01/opt/tomcat/conf/ssl"
+ },
+ {
+  "name": "web01 수집: 체인 2건(서버+중간 CA) 승인 대기, 개인키 파일은 대상 아님",
+  "pass": true,
+  "detail": "업로드: 파일 1개 → 승인 대기 2건(갱신본 0) · 이미 관리 중 0 · 실패 0"
+ },
+ {
+  "name": "was01 수집: PFX 비밀번호를 Agent 공개키로 암호화 전달받아 열기",
+  "pass": true,
+  "detail": "업로드: 파일 1개 → 승인 대기 1건(갱신본 0) · 이미 관리 중 0 · 실패 0"
+ },
+ {
+  "name": "DB·Agent 로그에 비밀번호 평문 없음",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "위치는 '호스트:경로'로 기록",
+  "pass": true,
+  "detail": "web01:/tmp/cert_remote/web01/etc/nginx/ssl/shop/fullchain.pem"
+ },
+ {
+  "name": "승인 → 인증서 등록(공개 인증서 PEM 보관)",
+  "pass": true,
+  "detail": "3건"
+ },
+ {
+  "name": "새 인증서를 incoming 에 두면 갱신본으로 인식",
+  "pass": true,
+  "detail": "업로드: 파일 2개 → 승인 대기 1건(갱신본 1) · 이미 관리 중 2 · 실패 0"
+ },
+ {
+  "name": "갱신본 4단계 승인(플랫폼)",
+  "pass": true,
+  "detail": "개발:완료 테스트:완료 교육:완료 운영:완료"
+ },
+ {
+  "name": "배포 Agent: 설치 → 설정 검사 → 재적용 → 실제 응답 지문 = 배포본",
+  "pass": true,
+  "detail": "83:DD:D1:9B:29:F1:E7:78… · 응답 확인: 127.0.0.1:9443 가 보내는 인증서 지문 83:DD:D1:9B:29:F1:E7:78… = 배포본"
+ },
+ {
+  "name": "체인 유지: 맨 앞 서버 인증서만 교체, 중간 CA 유지",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "플랫폼에 서버 적용 결과 기록",
+  "pass": true,
+  "detail": "설치·검사·재적용·응답 확인 완료 (1개 파일)"
+ },
+ {
+  "name": "이미 적용된 배포는 다시 하지 않음",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "키가 맞지 않는 인증서: 설정 검사 실패 → 백업으로 자동 원복, 서비스는 기존 인증서 유지",
+  "pass": true,
+  "detail": "개발:완료 테스트:완료 교육:완료 운영:완료 · 설정 검사 실패: SSL_CTX_use_PrivateKey failed: [X509: KEY_VALUES_MISMATCH] key values mismatch (_ssl.c:4129) → 백업 파일로 자동 원복"
+ },
+ {
+  "name": "배포 화면 '서버 적용' 열: 운영 web01 실패·원복 표시",
+  "pass": true,
+  "detail": "web01 실패·원복"
+ },
+ {
+  "name": "관리 탭: 서버 Agent 목록(최근 결과)·화면에서 등록 시 토큰과 설정 파일 1회 표시",
+  "pass": true,
+  "detail": "서버 Agent 3대"
+ },
+ {
+  "name": "감사 로그: 서버 Agent 등록·비밀번호 암호화 전달·서버 적용·적용 실패",
+  "pass": true,
+  "detail": "서버 Agent 등록, PFX 비밀번호 전달(암호화), 서버 적용, 서버 적용 실패"
+ }
+]

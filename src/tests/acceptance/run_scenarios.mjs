@@ -78,7 +78,7 @@ try {
   await A.check("#s-en"); await A.fill("#s-host", "127.0.0.1"); await A.fill("#s-port", String(SMTP)); await A.selectOption("#s-sec", "none");
   await A.fill("#s-from", "cert-platform@skax-demo.co.kr"); await A.click("#smtp-form button[type=submit]"); await toast(A);
   await A.fill("#s-to", "admin@skax-demo.co.kr"); await A.click("#s-test"); const smtpT = await toast(A);
-  step("SMTP 설정 후 테스트 메일", "테스트 메일 발송 성공", smtpT, smtpT.includes("보냈습니다"));
+  step("SMTP 설정 후 테스트 메일", "테스트 메일 발송 성공", smtpT, /보냈습니다|메일 완료/.test(smtpT));
   await shot(A, "users", "관리 탭: 역할별 사용자 8명과 SMTP 설정");
 
   // ════════ S02 수기 관리대장 등록
@@ -147,7 +147,7 @@ try {
   const o4b = await collect(A);
   step("교체 후 재수집", "portal.pfx 열림, 남은 실패는 hr.pfx(비밀번호 모름)·손상·개인키 3건", (o4b.match(/실패 \d+건/) || [""])[0] + " · " + (o4b.match(/보관함 비밀번호로 연 PFX \d+개/) || [""])[0], o4b.includes("실패 3건") && /hr\.pfx\(비밀번호 필요/.test(o4b));
   const sec = (await api(A, "GET", "api/secrets")).body;
-  const dbHit = execFileSync("sh", ["-c", `grep -c -a -e "Tomcat!2026" -e "Iis#Portal9" -e "Iis#Portal8" ${path.join(W, "platform.db")} || true`]).toString().trim();
+  const dbHit = String((execFileSync("python3", ["tools/dbdump.py", path.join(W, "platform.db")], { cwd: ROOT }).toString().match(/Tomcat!2026|Iis#Portal9|Iis#Portal8/g) || []).length);
   step("보관 상태 확인", "암호문만 저장(DB에 평문 0건), 사용 횟수·마지막 파일 기록", `등록 ${sec.items.length}개 · ${sec.items.map((x) => `${x.label}: 사용 ${x.use_count}회`).join(", ")} · DB 평문 ${dbHit}건`, dbHit === "0" && sec.items.every((x) => x.use_count >= 1));
   await shot(A, "vault_admin", "관리자 보관함: 등록 2건(폴더·파일 범위), 사용 횟수·최근 사용 파일 기록, 평문 조회 불가");
 
@@ -279,7 +279,7 @@ try {
   const other = C7.find((c) => c.subject_cn === "pay.skax-demo.co.kr");
   const jx = await api(JI, "POST", "api/action", { action: "cert.renewal", ops: [{ op: "update", coll: "certificates", id: other.id, data: { renewal_status: "완료" } }] });
   step("담당자(박지훈) 범위", "본인 담당(www·wildcard)만 보이고 타인 건(pay) 처리 차단", `${jr.join(", ")} · pay 처리 HTTP ${jx.status}`, jr.every((c) => /www|\*\./.test(c)) && jx.status === 403);
-  const leak = execFileSync("sh", ["-c", `grep -c -a -e "PRIVATE KEY" -e "Tomcat!2026" -e "Iis#Portal9" ${path.join(W, "platform.db")} || true`]).toString().trim();
+  const leak = String((execFileSync("python3", ["tools/dbdump.py", path.join(W, "platform.db")], { cwd: ROOT }).toString().match(/PRIVATE KEY|Tomcat!2026|Iis#Portal9/g) || []).length);
   step("DB 점검", "개인키·PFX 비밀번호 문자열 0건", `${leak}건`, leak === "0");
   const aud = (await api(A, "GET", "api/db/audit")).body;
   const acts = [...new Set(aud.map((a) => a.action))];

@@ -39,7 +39,7 @@ try {
   await O.click("#tg-form button[type=submit]"); await settle(O); await sleep(400);
   const otxt = await O.textContent("#p-targets");
   ok("담당자: 수집 대상 2개 등록(서버 Agent · SSH 접속), 비밀번호는 암호화 표시만", /쇼핑몰 웹/.test(otxt) && /레거시 WAS/.test(otxt) && /🔒/.test(otxt) && !otxt.includes("Ssh!Secret-77"), (otxt.match(/수집 대상 \d+개[^)]*\)/) || [""])[0]);
-  const db = fs.readFileSync(path.join(W, "p.db")).toString("latin1");
+  const db = execFileSync("python3", ["tools/dbdump.py", path.join(W, "p.db")], { cwd: ROOT }).toString();
   ok("DB에 접속 비밀번호 평문 없음(AES-256-GCM)", !db.includes("Ssh!Secret-77"));
   const list = (await api(O, "GET", "api/targets")).body;
   ok("API 응답에 암호문도 내보내지 않음(has_secret 만)", list.every((t) => !("enc" in t)) && list.some((t) => t.has_secret), list.map((t) => `${t.name}:${t.has_secret}`).join(", "));

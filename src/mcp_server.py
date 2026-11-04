@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,8 +55,8 @@ def call(store, name, args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", required=True)
-    store = agents.Store(ap.parse_args().db)
+    ap.add_argument("--db", default=os.environ.get("CERT_DB"), required=not os.environ.get("CERT_DB"))
+    store = agents.Store(agents.resolve_db(ap.parse_args().db))
     for line in sys.stdin:
         try:
             msg = json.loads(line)

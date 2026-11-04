@@ -1,0 +1,313 @@
+{
+ "at": "2026-11-04T19:32:51.381Z",
+ "pass": 59,
+ "total": 59,
+ "steps": {
+  "관리대장 등록": 1,
+  "PFX 비밀번호 등록": 1,
+  "수집 실행": 1,
+  "수집 검토": 10,
+  "수집 승인": 12,
+  "배포 요청": 6,
+  "배포 검토": 7,
+  "배포 승인": 6,
+  "배포 원복": 1
+ },
+ "results": [
+  {
+   "name": "최초 실행 시 관리자 생성 화면",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "비밀번호 정책(8자·영문+숫자) 검사",
+   "pass": true,
+   "detail": "짧은 비밀번호 거부"
+  },
+  {
+   "name": "관리자 로그인 → 탭 13개(수집 대상·AI 운영 포함)",
+   "pass": true,
+   "detail": "dash,ledger,disc,certs,targets,vault,deploy,noti,report,qa,ops,hist,admin"
+  },
+  {
+   "name": "사용자 5명 추가(역할별)",
+   "pass": true,
+   "detail": "6명"
+  },
+  {
+   "name": "SMTP 설정·테스트 발송",
+   "pass": true,
+   "detail": "테스트 발송: 메일 완료"
+  },
+  {
+   "name": "엑셀 형식 검증: 정상 4·오류 2",
+   "pass": true,
+   "detail": "만료일 '2026-13-01', 담당자 누락 행"
+  },
+  {
+   "name": "검증된 4건만 등록",
+   "pass": true,
+   "detail": "관리대장 등록: 신규 4건, 관리정보 갱신 0건"
+  },
+  {
+   "name": "수집 전 대조: 미수집 4",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "비밀번호 없는 PFX → '비밀번호가 필요한 파일'로 안내",
+   "pass": true,
+   "detail": "파일 13개 스캔 → 승인 대기 9건(갱신본 0), 이미 관리 중 1건, 실패 3건 · 실패: 검증/broken.crt(형식 오류: ValueE"
+  },
+  {
+   "name": "틀린 비밀번호 → '비밀번호 불일치(보관함 1개 시도)'",
+   "pass": true,
+   "detail": "pay-d7.pfx(비밀번호 불일치(보관함 1개 시도))"
+  },
+  {
+   "name": "수집 Agent: 13개 파일 → 승인 대기 누적 10건, 실패 2건(재실행해도 중복 없음)",
+   "pass": true,
+   "detail": "승인 대기 누적 10건 · 파일 13개 스캔 → 승인 대기 1건(갱신본 0), 이미 관리 중 10건, 실패 2건 · 보관함 비밀번호로 연 PFX 1개 · 실패: 검증/broken.crt(형"
+  },
+  {
+   "name": "보관함 비밀번호로 PFX 열기(파일 범위 자동 채움 → 교체 후 성공)",
+   "pass": true,
+   "detail": "검증/pay-d7.pfx"
+  },
+  {
+   "name": "DB에는 암호문만(AES-256-GCM), 평문·키 없음",
+   "pass": true,
+   "detail": "평문 0건 · 키 0건 · AES-256-GCM nonce RcqArC9S/X15jQd3"
+  },
+  {
+   "name": "API로 평문·암호문 조회 불가",
+   "pass": true,
+   "detail": "api/db/secrets 403 · 목록 항목 id,label,scope,scope_value,owner,created_by,created_at,updated_at,last_used_at,last_used_file,use_count,last_result,active,alg,kid"
+  },
+  {
+   "name": "등록·교체 이력 기록(값 없이)",
+   "pass": true,
+   "detail": "PFX 비밀번호 등록: pay-d7.pfx · 파일 검증/pay-d7.pfx (암호화 보관) / PFX 비밀번호 교체: pay-d7.pfx · 파일 검증/pay-d7.pfx"
+  },
+  {
+   "name": "대조 결과: 일치 2·불일치 1·미수집 1·신규 7",
+   "pass": true,
+   "detail": "불일치 1 미수집 1 신규 7 갱신본 0 일치 2 확인 완료 0"
+  },
+  {
+   "name": "불일치 변경 전·후 표시(api 만료일)",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "승인 전 관리정보 미변경",
+   "pass": true,
+   "detail": "수집 정보가 연결된 인증서 0건"
+  },
+  {
+   "name": "임시 비밀번호 → 첫 로그인 변경 강제 후 진입",
+   "pass": true,
+   "detail": "dash,ledger,disc,certs,deploy,noti,report,qa,hist"
+  },
+  {
+   "name": "검토자는 승인 버튼 비활성",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "검토 의견 10건 기록",
+   "pass": true,
+   "detail": "10건"
+  },
+  {
+   "name": "10건 승인 → 인증서 11건(대장 미수집 1 포함)",
+   "pass": true,
+   "detail": "승인 10, 인증서 11"
+  },
+  {
+   "name": "일치 건: 대장 담당자 유지 + 수집 메타 연결",
+   "pass": true,
+   "detail": "관리대장+수집 · 김담당"
+  },
+  {
+   "name": "불일치 건: 수집 만료일로 대장 갱신, 차이 기록",
+   "pass": true,
+   "detail": "{\"field\":\"not_after\",\"label\":\"만료일\",\"before\":\"2027-11-30\",\"after\":\"2026-11-30\"}"
+  },
+  {
+   "name": "처리자는 세션 기준 기록(화면 값 무시)",
+   "pass": true,
+   "detail": "최승인(승인자)"
+  },
+  {
+   "name": "알림 Agent: D-7·D-30·만료 단계별 생성",
+   "pass": true,
+   "detail": "알림 Agent: 새 알림 8건 {\"만료\":6,\"D-7\":1,\"D-30\":1}"
+  },
+  {
+   "name": "SMTP 발송: 이메일 등록 담당자에게 실제 발송",
+   "pass": true,
+   "detail": "이메일 발송 3건, 실패 5건: 받는 사람 이메일이 없거나 형식이 맞지 않습니다 · 수신 admin@example.co.kr, pay@example.co.kr, lee@example.co.kr, kim@example.co.kr"
+  },
+  {
+   "name": "메일 본문: 만료일·남은 일수·갱신 안내",
+   "pass": true,
+   "detail": "[D-7] pay.example.co.kr 인증서 만료 5일 전"
+  },
+  {
+   "name": "이메일 미등록 건은 발송하지 않고 사유 기록",
+   "pass": true,
+   "detail": "실패 5건: 받는 사람 이메일이 없거나 형식이 맞지 않습니다"
+  },
+  {
+   "name": "담당자 탭 9개(관리대장·수집 승인·관리 없음, 수집 대상·PFX 비밀번호 있음)",
+   "pass": true,
+   "detail": "dash,certs,targets,vault,deploy,noti,report,qa,hist"
+  },
+  {
+   "name": "담당자: 본인 등록분만 조회·삭제, 전체 범위·상위 경로 차단",
+   "pass": true,
+   "detail": "전체 403 · 등록 200 · ../ 400 · 목록 1 · 타인 삭제 404 · 본인 삭제 200"
+  },
+  {
+   "name": "담당자는 본인 인증서만 조회",
+   "pass": true,
+   "detail": "pay.example.co.kr"
+  },
+  {
+   "name": "API 조회도 담당 범위로 제한",
+   "pass": true,
+   "detail": "수집 0, 인증서 1, 사용자 HTTP 403"
+  },
+  {
+   "name": "타인 인증서 처리·권한 밖 작업 차단",
+   "pass": true,
+   "detail": "본인 담당 인증서만 처리할 수 있습니다 / 권한이 없습니다 (담당자: 수집 승인·반려)"
+  },
+  {
+   "name": "QA 챗봇도 담당 범위 정보만 사용",
+   "pass": true,
+   "detail": "타인 인증서 정보 미노출"
+  },
+  {
+   "name": "요청 전 사전 검사: 만료 임박 인증서는 배포 요청 단계에서 차단·사유 표시",
+   "pass": true,
+   "detail": "검토 자동 검증을 통과하지 못해 요청할 수 없습니다: 남은 기간 30일 초과(남은 5일) "
+  },
+  {
+   "name": "검토자 자동 검증: 남은 5일 → '남은 기간 30일 초과' 실패",
+   "pass": true,
+   "detail": "검토 통과 버튼 비활성"
+  },
+  {
+   "name": "검증 실패 시 통과 불가(반려만)",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "승인 → 개발 환경 폴더에 인증서 파일 반영",
+   "pass": true,
+   "detail": "개발 환경에 반영했습니다 (web-normal.crt)"
+  },
+  {
+   "name": "갱신본 2건 수집",
+   "pass": true,
+   "detail": "파일 15개 스캔 → 승인 대기 2건(갱신본 2), 이미 관리 중 11건, 실패 2건 · 보관함 비밀번호로 연 PFX 1개 · 실패: 검증/broken.crt(형식 오류: ValueError), 검증/only-key.pem(인증서가 아닌 PEM(개인키 등))"
+  },
+  {
+   "name": "갱신본으로 분류",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "갱신본 승인 → 기존 갱신 완료·담당자 승계·알림 종료",
+   "pass": true,
+   "detail": "새 만료 2027-12-10"
+  },
+  {
+   "name": "갱신본 개발→테스트→교육→운영 4단계 배포",
+   "pass": true,
+   "detail": "개발:완료 테스트:완료 교육:완료 운영:완료"
+  },
+  {
+   "name": "운영 반영 기록(지문·만료일)",
+   "pass": true,
+   "detail": "pay-renewed.crt · 2027-12-10"
+  },
+  {
+   "name": "직무 분리: 요청자는 검토 불가(관리자 포함)",
+   "pass": true,
+   "detail": "직무 분리: 배포 요청자는 검토할 수 없습니다"
+  },
+  {
+   "name": "상태 전이 검사: 검토 없이 승인 불가",
+   "pass": true,
+   "detail": "409 승인할 수 없는 상태입니다 (요청)"
+  },
+  {
+   "name": "갱신본 개발 반영(이전 파일 history 보관)",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "원복 → 직전 배포본 복구(파일·기록)",
+   "pass": true,
+   "detail": "직전 배포본으로 원복했습니다"
+  },
+  {
+   "name": "보고서: 갱신 상태별·지연·중복 집계",
+   "pass": true,
+   "detail": "30일 이내 만료 1건"
+  },
+  {
+   "name": "보고서 엑셀: 시트 3개, 화면과 같은 건수",
+   "pass": true,
+   "detail": "요약/갱신 현황/중복 인증서 · 11건"
+  },
+  {
+   "name": "보고서 CSV(엑셀 수식 주입 방지 포함)",
+   "pass": true,
+   "detail": "11행"
+  },
+  {
+   "name": "조회자: 전체 조회, 모든 변경 차단",
+   "pass": true,
+   "detail": "인증서 11건 · 권한이 없습니다 (조회자: 관리정보 변경)"
+  },
+  {
+   "name": "가이드 업로드(서버, .md·PDF): 관리자 저장·RAG 반영, 조회자 차단",
+   "pass": true,
+   "detail": "검색 문단 41개 · 조회자 403"
+  },
+  {
+   "name": "미로그인 401 · CSRF 없는 요청 403 · 직접 DB 쓰기 경로 없음",
+   "pass": true,
+   "detail": "401 / 403 / 404"
+  },
+  {
+   "name": "작업별 허용 필드·문서 ID 검사",
+   "pass": true,
+   "detail": "수정할 수 없는 항목입니다: fingerprint / 허용되지 않은 문서 ID 입니다 (c_forged)"
+  },
+  {
+   "name": "로그인 5회 실패 → 잠금",
+   "pass": true,
+   "detail": "401,401,401,401,401,429"
+  },
+  {
+   "name": "보안 헤더(CSP·X-Frame-Options·nosniff)",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "사용자 비밀번호는 해시만 저장",
+   "pass": true,
+   "detail": "평문 0건"
+  },
+  {
+   "name": "감사 로그: 역할별 처리자 기록",
+   "pass": true,
+   "detail": ""
+  }
+ ]
+}

@@ -1,0 +1,653 @@
+{
+ "at": "2026-11-04T19:37:57.874Z",
+ "seconds": 60,
+ "pass": 51,
+ "total": 51,
+ "scenarios": [
+  {
+   "id": "S01",
+   "title": "플랫폼 최초 설정과 사용자 등록",
+   "goal": "관리자가 처음 접속해 관리자 계정을 만들고, 담당자 4명·검토자·승인자·조회자 계정과 메일(SMTP)을 설정한다.",
+   "steps": [
+    {
+     "action": "처음 접속",
+     "expected": "최초 관리자 계정 만들기 화면",
+     "actual": "최초 관리자 생성 화면 표시",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "사용자 7명 추가(담당자 4·검토자·승인자·조회자)",
+     "expected": "사용자 목록 8명",
+     "actual": "8명",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "SMTP 설정 후 테스트 메일",
+     "expected": "테스트 메일 발송 성공",
+     "actual": "테스트 발송: 메일 완료",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S01_users.png",
+     "caption": "관리 탭: 역할별 사용자 8명과 SMTP 설정"
+    }
+   ],
+   "started": "2026-11-04T19:36:57.723Z"
+  },
+  {
+   "id": "S02",
+   "title": "엑셀 수기 관리대장 등록",
+   "goal": "담당자들이 손으로 관리해 온 엑셀 대장(10행)을 올려 형식을 검증하고, 오류를 고친 수정본으로 등록한다.",
+   "steps": [
+    {
+     "action": "원본 업로드(제목 행·빈 행이 있는 실제 양식)",
+     "expected": "머리글 자동 인식, 오류 4건(담당자 누락·날짜 오타·이메일 오타·중복 행), 정상 6건",
+     "actual": "정상 6건 · 오류 4건",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "오류 사유 표시",
+     "expected": "행 번호와 사유",
+     "actual": "필수 값이 비어 / 날짜 형식이 아닙니다 / 이메일 형식이 아닙니다 / 중복",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "점(.)으로 쓴 날짜 2026.11.07 형식",
+     "expected": "정상 인식",
+     "actual": "www 행 정상 목록에 포함",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "수정본 업로드",
+     "expected": "정상 9건 · 오류 없음",
+     "actual": "정상 9건 오류 없음\n        \n        등록할 9건 미리 보기행인증서명발급기관만료일담당자이메일업무4shop.skax-demo.co.krDigiCert2027-06-03김민수minsu.kim@skax-demo.co.kr쇼핑몰5api.skax-demo.co.krLet's Encrypt2027-01-25이서연seoyeon.lee@skax-demo.co.kr오픈API6www.skax-demo.co.krSectigo2026-11-11박지훈jihoon.park@skax-demo.co.kr대표홈페이지7*.skax-demo.co.krGlobalSign2027-11-20박지훈jihoon.park@skax-demo.co.kr공통8pay.skax-demo.co.krDigiCert2026-12-20이서연seoyeon.lee@skax-demo.co.kr결제9erp.skax-demo.co.krDigiCert2026-11-02정하늘haneul.jung@skax-demo.co.krERP10portal.skax-demo.co.krGlobalSign2026-11-20김민수minsu.kim@skax-demo.co.kr그룹포털11hr.skax-demo.co.krGlobalSign2027-03-05최유진yujin.choi@skax-demo.co.kr인사12old-gw.skax-demo.co.krThawte2026-12-01김민수minsu.kim@skax-demo.co.kr구 그룹웨어\n        검증된 9건 등록취소\n        \n      \n    \n    관리대장 ↔ 수집 결과 대조\n      승인 대기 중인 수집 결과를 관리대장과 비교합니다. 일치",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "등록",
+     "expected": "신규 9건",
+     "actual": "관리대장 등록: 신규 9건, 관리정보 갱신 0건",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "수집 전 대조 현황",
+     "expected": "9건 모두 '미수집'(아직 서버에서 확인 안 됨)",
+     "actual": "미수집 9",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S02_ledger_errors.png",
+     "caption": "원본 업로드: 오류 4건을 행·열·사유와 함께 표시, 등록 전 미리보기"
+    },
+    {
+     "file": "S02_ledger_registered.png",
+     "caption": "수정본 등록 후: 대장 9건이 모두 '미수집' 상태로 대조 대기"
+    }
+   ],
+   "started": "2026-11-04T19:37:03.810Z"
+  },
+  {
+   "id": "S03",
+   "title": "서버 4대 1차 수집과 대장 대조",
+   "goal": "nginx·Apache·Tomcat·IIS 서버 폴더를 수집 Agent로 스캔한다. 보관함에 PFX 비밀번호가 아직 없다.",
+   "steps": [
+    {
+     "action": "수집 Agent 실행",
+     "expected": "대상 확장자 파일 12개(.bak 제외)",
+     "actual": "파일 12개 스캔 → 승인 대기 7건(갱신본 0), 이미 관리 중 0건, 실패 6건 · 실패: web01-nginx/etc/nginx/ssl/shop.skax-demo.co.kr/privkey.pem(인증서가 아닌 PEM(개인키 등)), win01-iis/C/inetpub/certs/h",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "PFX 4개는 비밀번호가 없어 실패로 분류, 손상·개인키 파일도 사유 표시",
+     "expected": "비밀번호 필요 4 · 형식 오류 1 · 인증서 아님 1",
+     "actual": "비밀번호 필요 4 · 형식 오류 1 · 인증서가 아닌 PEM 1",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "대장 대조",
+     "expected": "일치 3(shop·wildcard·www) · 불일치 1(api 만료일) · 미수집 5(PFX 4 + 폐기 서버 old-gw) · 신규 2(공동인증서·중간CA) · 이전 버전 1(www 2025 사본)",
+     "actual": "일치 3 · 불일치 1 · 미수집 5 · 신규 2 · 이전 버전 1",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "불일치 변경 전·후",
+     "expected": "api 만료일 대장값 → 수집값",
+     "actual": "만료일: 2027-01-25 → 2026-11-25",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S03_reconcile_1st.png",
+     "caption": "1차 수집 후 대조: 불일치는 변경 전→후, PFX는 비밀번호가 없어 미수집"
+    }
+   ],
+   "started": "2026-11-04T19:37:05.675Z"
+  },
+  {
+   "id": "S04",
+   "title": "PFX 비밀번호 보관함 등록·교체 후 재수집",
+   "goal": "담당자는 본인 서버 폴더 범위로, 관리자는 파일 1개 범위로 비밀번호를 등록한다. 한 건은 일부러 틀리게 넣고 교체한다.",
+   "steps": [
+    {
+     "action": "담당자(이서연) 보관함 탭: 비밀번호가 필요한 파일 목록",
+     "expected": "마지막 수집에서 비밀번호가 필요했던 4개 파일 표시",
+     "actual": "4개 파일",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "담당자가 폴더 범위로 등록",
+     "expected": "암호화해 저장",
+     "actual": "암호화해 저장했습니다",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "담당자가 '전체 PFX' 범위 등록 시도",
+     "expected": "차단(관리자만)",
+     "actual": "HTTP 403 '전체 파일' 범위는 관리자만 등록할 수 있습니다",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "관리자가 '이 파일로 등록'(경로 자동 입력) — 일부러 틀린 비밀번호",
+     "expected": "경로 자동 채움, 저장",
+     "actual": "win01-iis/C/inetpub/certs/portal.pfx",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "재수집",
+     "expected": "Tomcat 2개는 열림, portal.pfx 는 '비밀번호 불일치', hr.pfx 는 '비밀번호 필요'",
+     "actual": "보관함 비밀번호로 연 PFX 2개 · portal.pfx(비밀번호 불일치(보관함 1개 시도))",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "비밀번호 교체",
+     "expected": "교체 성공(값은 다시 볼 수 없음)",
+     "actual": "비밀번호를 교체했습니다",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "교체 후 재수집",
+     "expected": "portal.pfx 열림, 남은 실패는 hr.pfx(비밀번호 모름)·손상·개인키 3건",
+     "actual": "실패 3건 · 보관함 비밀번호로 연 PFX 3개",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "보관 상태 확인",
+     "expected": "암호문만 저장(DB에 평문 0건), 사용 횟수·마지막 파일 기록",
+     "actual": "등록 2개 · portal.pfx: 사용 1회, Tomcat 키스토어(결제·ERP): 사용 2회 · DB 평문 0건",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S04_vault_owner.png",
+     "caption": "담당자 화면: 비밀번호가 필요한 파일과 본인이 등록한 항목만 보임"
+    },
+    {
+     "file": "S04_vault_admin.png",
+     "caption": "관리자 보관함: 등록 2건(폴더·파일 범위), 사용 횟수·최근 사용 파일 기록, 평문 조회 불가"
+    }
+   ],
+   "started": "2026-11-04T19:37:06.889Z"
+  },
+  {
+   "id": "S05",
+   "title": "수집 결과 검토·승인·반려",
+   "goal": "검토자가 의견을 남기고 승인자가 승인한다. 대장에 없던 인증서는 담당자를 지정하고, 이전 버전 사본은 반려한다.",
+   "steps": [
+    {
+     "action": "검토자 검토 의견(적합)",
+     "expected": "대기 건마다 의견 기록, 승인 버튼은 없음",
+     "actual": "10건 검토",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "승인 대기 분류",
+     "expected": "일치·불일치·이전 버전·신규 구분",
+     "actual": "이전 버전,일치,불일치,신규",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "승인·반려 처리",
+     "expected": "이전 버전 1건 반려, 나머지 승인",
+     "actual": "승인 9 · 반려 1",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "불일치 건: 수집값으로 대장 갱신 + 차이 기록, 담당자 유지",
+     "expected": "api 만료일 수집값, 담당 이서연",
+     "actual": "2026-11-25 · 이서연 · 차이 {\"after\":\"2026-11-25\",\"field\":\"not_after\",\"label\":\"만료일\",\"before\":\"2027-01-25\"}",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "이전 버전 사본은 등록 안 됨",
+     "expected": "www 인증서 1건만",
+     "actual": "www 1건",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "폐기 서버 인증서(old-gw)",
+     "expected": "수집되지 않아 '대장만 등록'으로 남음 → 정리 대상",
+     "actual": "관리대장 · 지문 없음",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S05_approval.png",
+     "caption": "승인자 화면: 대장 대조 구분(일치·불일치·이전 버전·신규)과 검토 의견"
+    },
+    {
+     "file": "S05_reconcile_after.png",
+     "caption": "승인 후 대조: 확인 완료와 미수집(폐기 서버·hr.pfx)만 남음"
+    }
+   ],
+   "started": "2026-11-04T19:37:12.626Z"
+  },
+  {
+   "id": "S06",
+   "title": "만료 알림과 담당자 메일",
+   "goal": "알림 Agent가 D-30·D-7·만료 대상을 한 번씩 만들고, 담당자 이메일로 발송한다. 다시 실행해도 중복되지 않아야 한다.",
+   "steps": [
+    {
+     "action": "알림 Agent 실행",
+     "expected": "D-7 1(www) · D-30 3(api·portal·대장에만 남은 old-gw) · 만료 1(erp)",
+     "actual": "알림 Agent: 새 알림 5건 {\"만료\":1,\"D-30\":3,\"D-7\":1}",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "폐기 서버 인증서도 대장에 남아 있으면 알림",
+     "expected": "old-gw D-30 알림 → 대장 정리 필요 신호",
+     "actual": "D-30 · [D-30] old-gw.skax-demo.co.kr 인증서 만료 26일 전",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "다시 실행",
+     "expected": "새 알림 0건(단계별 1회)",
+     "actual": "알림 Agent: 새 알림 0건",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "미발송 알림 이메일 발송",
+     "expected": "담당자별 실제 수신(SMTP)",
+     "actual": "이메일 발송 5건 · 수신 haneul.jung@skax-demo.co.kr, minsu.kim@skax-demo.co.kr, seoyeon.lee@skax-demo.co.kr, jihoon.park@skax-demo.co.kr",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "메일 내용",
+     "expected": "제목에 단계, 본문에 만료일·남은 일수·저장 위치",
+     "actual": "[D-7] www.skax-demo.co.kr 인증서 만료 6일 전 / 박지훈님, 안녕하세요.\n\nwww.skax-demo.co.kr (발급: Sectigo RSA Domain Validation Secure Server CA) 인증서의 만료일은 2026-11-11 입니다. 남은 기간은 ",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "담당자(박지훈) 첫 화면",
+     "expected": "본인 담당(www·wildcard)만, '조치가 필요한 담당 인증서' 안내",
+     "actual": "내 담당 인증서 →\n  · 조치 안내 있음",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S06_notifications.png",
+     "caption": "알림함: 단계별 알림과 메일 발송 결과"
+    },
+    {
+     "file": "S06_owner_dash.png",
+     "caption": "담당자 대시보드: 본인 담당 인증서와 할 일만 표시"
+    }
+   ],
+   "started": "2026-11-04T19:37:23.805Z"
+  },
+  {
+   "id": "S07",
+   "title": "갱신: 새 인증서 배치 → 갱신본 인식 → 승인",
+   "goal": "박지훈이 www 인증서를 새로 발급받아 서버에 올렸다. 수집 Agent가 갱신본으로 인식하고, 승인하면 기존 건 갱신 완료·알림 종료가 되어야 한다.",
+   "steps": [
+    {
+     "action": "수집",
+     "expected": "새 파일 1건만 갱신본으로 승인 대기, 이전에 반려한 사본(www_2025)은 다시 올리지 않음",
+     "actual": "승인 대기 1건(갱신본 1), 이미 관리 중 10건, 실패 3건 이전에 반려한 인증서 1건 제외",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "분류",
+     "expected": "갱신본 + 기존 만료일 표시",
+     "actual": "갱신본기존 만료 2026-11-11 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 반려",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "승인 결과",
+     "expected": "기존 건 '갱신 완료'·교체, 새 건 담당자 승계(박지훈), 기존 알림 종료",
+     "actual": "승인했습니다. 기존 인증서를 갱신 완료로 바꿨습니다 · 새 만료 2027-12-05 · 담당 박지훈 · 알림 종료 1/1",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [],
+   "started": "2026-11-04T19:37:27.365Z"
+  },
+  {
+   "id": "S08",
+   "title": "갱신본 4단계 배포와 원복",
+   "goal": "박지훈이 갱신본 배포를 요청하고 검토자·승인자가 단계별로 처리한다. 승인되면 플랫폼이 배포 폴더에 인증서 파일을 놓는다(서버 적용은 각 서버 담당 — 현재 범위). 마지막에 운영 단계를 원복한다.",
+   "steps": [
+    {
+     "action": "요청→검토→승인 × 4단계",
+     "expected": "개발·테스트·교육·운영 모두 완료",
+     "actual": "개발:완료 테스트:완료 교육:완료 운영:완료",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "배포 폴더 반영",
+     "expected": "deploy/prod/www.skax-demo.co.kr/ 에 갱신 인증서 + DEPLOYED.json(지문·만료일)",
+     "actual": "DEPLOYED.json, www.skax-demo.co.kr_2027.crt · 2027-12-05",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "담당자가 검토 시도",
+     "expected": "권한 없음",
+     "actual": "HTTP 403",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "운영 원복",
+     "expected": "직전 배포본으로 되돌림(첫 배포였으므로 운영 폴더 비움) + 사유 기록",
+     "actual": "직전 배포본으로 원복했습니다 · 현재 운영 인증서 x_efec866065d9e32e",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "원복 후 운영 배포 폴더",
+     "expected": "갱신 전 인증서 파일로 되돌리고, 갱신본은 history/ 에 보관",
+     "actual": "DEPLOYED.json, history, www.skax-demo.co.kr.crt · 만료 2026-11-11 · history 1개",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S08_deploy_review.png",
+     "caption": "검토자: 자동 검증 6항목(유효기간·남은 기간·알고리즘·키 강도·도메인 유지·만료일 연장)"
+    },
+    {
+     "file": "S08_deploy_board.png",
+     "caption": "배포 현황판: 단계별 상태, 원복 사유, 운영 환경 현재 인증서"
+    }
+   ],
+   "started": "2026-11-04T19:37:29.997Z"
+  },
+  {
+   "id": "S09",
+   "title": "보고서와 엑셀 내보내기",
+   "goal": "관리자가 갱신 현황·지연·중복 보고서를 보고 엑셀로 내려받는다.",
+   "steps": [
+    {
+     "action": "보고서 화면",
+     "expected": "갱신 완료·지연·중복 집계",
+     "actual": "갱신 완료 / 갱신 지연 / 같은 인증서 여러 위치",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "엑셀 내려받기",
+     "expected": "시트 3개(요약·갱신 현황·중복), 화면과 같은 건수",
+     "actual": "요약/갱신 현황/중복 인증서 · 11행",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S09_report.png",
+     "caption": "보고서: 갱신 상태별 집계와 지연 목록"
+    }
+   ],
+   "started": "2026-11-04T19:37:49.301Z"
+  },
+  {
+   "id": "S10",
+   "title": "역할별 권한과 보안 점검",
+   "goal": "조회자는 볼 수만 있고, 담당자는 본인 담당분만 처리하며, 비밀번호·개인키는 어디에도 남지 않는다.",
+   "steps": [
+    {
+     "action": "조회자",
+     "expected": "전체 조회 가능, 변경 차단",
+     "actual": "인증서 11건 · 변경 HTTP 403",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "담당자(박지훈) 범위",
+     "expected": "본인 담당(www·wildcard)만 보이고 타인 건(pay) 처리 차단",
+     "actual": "*.skax-demo.co.kr, www.skax-demo.co.kr · pay 처리 HTTP 403",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "DB 점검",
+     "expected": "개인키·PFX 비밀번호 문자열 0건",
+     "actual": "0건",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "감사 로그",
+     "expected": "등록·수집·승인·반려·보관함·배포·원복·메일이 처리자와 함께 기록",
+     "actual": "65건 · 최초 관리자 생성, 로그인, 사용자 생성, SMTP 설정 변경, 알림 채널 테스트, 관리대장 등록, 비밀번호 변경, PFX 비밀번호 등록, PFX 비밀번호 교체, 수집 검토, 수집 반려, 수집 승인, 배포 요청, 배포 검토, 배포 승인, 배포 원복, 이메일 발송, 알림 생성, 수집 실행",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S10_audit.png",
+     "caption": "감사 로그 검색(PFX): 비밀번호 등록·교체가 값 없이 기록"
+    }
+   ],
+   "started": "2026-11-04T19:37:50.639Z"
+  },
+  {
+   "id": "S11",
+   "title": "QA 챗봇(서버판 검색형)과 가이드 PDF 업로드",
+   "goal": "Claude 키가 없는 PC 서버에서도 등록 인증서 정보와 가이드 원문으로 답하는지, PDF 가이드를 올리면 바로 근거로 쓰는지 확인한다. (실제 Claude 답변·검증은 별도 테스트)",
+   "steps": [
+    {
+     "action": "인증서 질문",
+     "expected": "새 만료일·담당 박지훈",
+     "actual": "등록 인증서 정보:\n- www.skax-demo.co.kr: 발급기관 Sectigo RSA Domain Validation Secure Server CA, 만료일 2027-12-05(KST), 상태 정상(만료 31일 이상 남음), 남은 일수 395일, 갱신 상태 미조치, 담당자 박지훈,",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "PDF 가이드 업로드 후 질문",
+     "expected": "업로드 가이드(U01) 근거로 'nginx -t' 안내",
+     "actual": "관련 가이드:\n[U01-3] Nginx SSL 인증서 설치 가이드 (예시) > 3. 설정 검사와 재시작\nnginx -t 로 설정 문법을 먼저 검사합니다. 오류가 없으면 systemctl reload nginx 로 무중단 재적용합니다. 적용 후 openssl s_client -connec",
+     "pass": true,
+     "note": ""
+    },
+    {
+     "action": "비밀번호 요구",
+     "expected": "가드레일 차단, LLM 호출 안 함",
+     "actual": "비밀번호는 저장하지 않으며 알려드릴 수 없습니다.입력 가드레일에서 차단 · Claude 호출 안 함",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S11_qa_server.png",
+     "caption": "QA(서버판): 등록 정보·업로드 PDF 근거 답변, 비밀번호 요구 차단"
+    }
+   ],
+   "started": "2026-11-04T19:37:53.590Z"
+  },
+  {
+   "id": "S12",
+   "title": "모바일에서 승인·알림 확인",
+   "goal": "승인자가 휴대폰으로 알림을 보고 승인 화면을 연다.",
+   "steps": [
+    {
+     "action": "390px 화면",
+     "expected": "가로 넘침 없음, 표는 카드로",
+     "actual": "scrollWidth 390px",
+     "pass": true,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "file": "S12_mobile.png",
+     "caption": "휴대폰(390px): 표가 카드로 바뀌어 버튼이 바로 보임"
+    }
+   ],
+   "started": "2026-11-04T19:37:56.106Z"
+  }
+ ],
+ "data": {
+  "generated_at": "2026-11-04T19:36:55.656560+00:00",
+  "files": [
+   {
+    "path": "web01-nginx/etc/nginx/ssl/shop.skax-demo.co.kr/fullchain.pem",
+    "kind": "leaf+chain",
+    "cn": [
+     "shop.skax-demo.co.kr",
+     "DigiCert Global G2 TLS RSA SHA256 2020 CA1"
+    ],
+    "days": 210
+   },
+   {
+    "path": "web01-nginx/etc/nginx/ssl/shop.skax-demo.co.kr/privkey.pem",
+    "kind": "key-only"
+   },
+   {
+    "path": "web01-nginx/etc/letsencrypt/live/api.skax-demo.co.kr/cert.pem",
+    "kind": "leaf",
+    "cn": [
+     "api.skax-demo.co.kr"
+    ],
+    "days": 20
+   },
+   {
+    "path": "web01-nginx/etc/letsencrypt/live/api.skax-demo.co.kr/cert.pem.bak",
+    "kind": "ignored-ext"
+   },
+   {
+    "path": "web02-apache/etc/httpd/ssl/www.skax-demo.co.kr.crt",
+    "kind": "leaf",
+    "cn": [
+     "www.skax-demo.co.kr"
+    ],
+    "days": 6
+   },
+   {
+    "path": "web02-apache/etc/httpd/ssl/old/www.skax-demo.co.kr_2025.crt",
+    "kind": "old-version",
+    "cn": [
+     "www.skax-demo.co.kr"
+    ],
+    "days": -359
+   },
+   {
+    "path": "web02-apache/etc/httpd/ssl/wildcard_skax-demo.cer",
+    "kind": "leaf-der",
+    "cn": [
+     "*.skax-demo.co.kr"
+    ],
+    "days": 380
+   },
+   {
+    "path": "web02-apache/etc/httpd/ssl/corrupted.crt",
+    "kind": "broken"
+   },
+   {
+    "path": "was01-tomcat/opt/tomcat/conf/ssl/pay.skax-demo.co.kr.p12",
+    "kind": "pfx",
+    "cn": [
+     "pay.skax-demo.co.kr",
+     "DigiCert Global G2 TLS RSA SHA256 2020 CA1"
+    ],
+    "days": 45,
+    "password": "tomcat"
+   },
+   {
+    "path": "was01-tomcat/opt/tomcat/conf/ssl/erp.skax-demo.co.kr.p12",
+    "kind": "pfx",
+    "cn": [
+     "erp.skax-demo.co.kr"
+    ],
+    "days": -3,
+    "password": "tomcat"
+   },
+   {
+    "path": "win01-iis/C/inetpub/certs/portal.pfx",
+    "kind": "pfx",
+    "cn": [
+     "portal.skax-demo.co.kr"
+    ],
+    "days": 15,
+    "password": "iis_portal"
+   },
+   {
+    "path": "win01-iis/C/inetpub/certs/hr.pfx",
+    "kind": "pfx-unknown-pw",
+    "cn": [
+     "hr.skax-demo.co.kr"
+    ],
+    "days": 120,
+    "password": "iis_hr"
+   },
+   {
+    "path": "win01-iis/Users/admin/NPKI/yessign/USER/signCert.der",
+    "kind": "leaf-der",
+    "cn": [
+     "홍길동()0012345678"
+    ],
+    "days": 90
+   }
+  ],
+  "passwords_note": "테스트 전용 비밀번호는 make_ops.py PW 참고"
+ },
+ "server_errors": ""
+}

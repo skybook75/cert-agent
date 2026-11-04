@@ -267,7 +267,8 @@ def gate_tests(root: Path) -> list[dict]:
         port = _free_port()
         db = root / "_gate.db"
         p = subprocess.Popen([sys.executable, str(root / "platform_server.py"), "--db", str(db), "--port", str(port), "--no-browser",
-                              "--vault-key", str(root / "_gate.key"), "--deploy", str(root / "_gate_deploy")], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                              "--vault-key", str(root / "_gate.key"), "--deploy", str(root / "_gate_deploy")], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                             env={k: v for k, v in os.environ.items() if k not in ("CERT_TEST_DB", "CERT_DB")})   # 임시 사본은 운영 DB와 분리된 파일 DB
         try:
             ok_all = True
             for path, want in (("/", b"tabs"), ("/core.js", b"function"), ("/api/health", b"setup_needed")):
@@ -584,8 +585,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["orchestrate", "diagnose"])
     ap.add_argument("goal", nargs="?", default="일일 운영 점검")
-    ap.add_argument("--db", default=str(BASE / "platform.db"))
+    ap.add_argument("--db", default=os.environ.get("CERT_DB") or str(BASE / "platform.db"))
     a = ap.parse_args()
-    s = agents.Store(a.db)
+    s = agents.Store(agents.resolve_db(a.db))
     out = orchestrate(s, a.goal, "오케스트레이터(정기 실행)") if a.cmd == "orchestrate" else diagnose(s)
     print(json.dumps(out, ensure_ascii=False, indent=1)[:4000])

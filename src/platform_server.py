@@ -236,7 +236,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/health":
                 return self._json({"ok": True, "mode": "server", "scan_root": SCAN_ROOT, "deploy_root": str(DEPLOY_ROOT),
                                    "setup_needed": not STORE.list("users"), "llm": bool(os.environ.get("ANTHROPIC_API_KEY")),
-                                   "smtp": bool(agents.smtp_settings(STORE).get("enabled"))})
+                                   "smtp": bool(agents.smtp_settings(STORE).get("enabled")), "db": STORE.describe()})
             if method == "POST" and path == "/api/setup":
                 return self._setup()
             if method == "POST" and path == "/api/login":
@@ -997,7 +997,8 @@ class Handler(BaseHTTPRequestHandler):
 def main(argv=None):
     global STORE, SCAN_ROOT, DEPLOY_ROOT, VAULT
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default=str(BASE / "platform.db"))
+    ap.add_argument("--db", default=os.environ.get("CERT_DB") or str(BASE / "platform.db"),
+                    help="SQLite 파일 경로 또는 postgresql://… (환경변수 CERT_DB 로도 지정 — 비밀번호를 명령줄에 남기지 않음)")
     ap.add_argument("--scan", help="수집 Agent가 스캔할 승인 폴더")
     ap.add_argument("--deploy", default=str(BASE / "deploy"), help="단계별 배포 폴더 (deploy/<dev|test|edu|prod>/<인증서명>)")
     ap.add_argument("--port", type=int, default=8000)
@@ -1005,11 +1006,16 @@ def main(argv=None):
     ap.add_argument("--host", default="127.0.0.1", help="접속 허용 주소 (서버 설치 시 0.0.0.0, 방화벽·보안그룹으로 접근 제한)")
     ap.add_argument("--vault-key", help="PFX 비밀번호 보관함 키 파일 (기본: %%APPDATA%%\\cert_platform\\vault.key, DB 와 다른 곳)")
     a = ap.parse_args(argv)
+    a.db = agents.resolve_db(a.db)
     STORE = agents.Store(a.db)
     VAULT = vault_mod.Vault(a.vault_key)
     SCAN_ROOT = str(Path(a.scan).resolve()) if a.scan else None
     DEPLOY_ROOT = Path(a.deploy).resolve()
-    sess_file = Path(a.db).with_suffix(".sessions")       # 유지보수 Agent 반영 후 재시작 시 로그인 세션 유지(600 권한, 즉시 삭제)
+    if agents.is_pg(a.db):                                # DB가 서버(PostgreSQL)면 세션 임시 파일은 상태 폴더에
+        sdir = Path(os.environ.get("CERT_STATE_DIR") or ("/var/lib/cert-platform" if Path("/var/lib/cert-platform").is_dir() else BASE))
+        sess_file = sdir / "platform.sessions"
+    else:
+        sess_file = Path(a.db).with_suffix(".sessions")       # 유지보수 Agent 반영 후 재시작 시 로그인 세션 유지(600 권한, 즉시 삭제)
     if sess_file.exists():
         try:
             SESSIONS.update(json.loads(sess_file.read_text(encoding="utf-8")))
@@ -1022,7 +1028,7 @@ def main(argv=None):
             fh.write(json.dumps(SESSIONS))
     ops_agents.BEFORE_RESTART.append(_save_sessions)
     url = f"http://localhost:{a.port}"
-    print(f"인증서 관리 플랫폼: {url}\n  DB: {a.db}\n  스캔 폴더: {SCAN_ROOT or '(미지정)'}\n  배포 폴더: {DEPLOY_ROOT}\n"
+    print(f"인증서 관리 플랫폼: {url}\n  DB: {STORE.describe()}{'' if agents.is_pg(a.db) else ' ' + a.db}\n  스캔 폴더: {SCAN_ROOT or '(미지정)'}\n  배포 폴더: {DEPLOY_ROOT}\n"
           f"  PFX 비밀번호 보관함: {vault_mod.ALG}, 키 {VAULT.source}\n"
           f"  Claude 챗봇: {'사용' if os.environ.get('ANTHROPIC_API_KEY') else '키 없음 → 검색형 답변'}\n"
           f"  계정: {'없음 → 브라우저에서 최초 관리자 생성' if not STORE.list('users') else '로그인 필요'}")

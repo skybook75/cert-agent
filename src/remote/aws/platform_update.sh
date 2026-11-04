@@ -13,13 +13,14 @@ REGION=$(curl -s -H "X-aws-ec2-metadata-token: $T" http://169.254.169.254/latest
 K=$(aws ssm get-parameter --region "$REGION" --name /cert-lab/anthropic-api-key --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
 umask 077
 { [ -n "$K" ] && [ "$K" != None ] && echo "ANTHROPIC_API_KEY=$K"; echo "AWS_REGION=$REGION"; } > /etc/cert-platform/env
+DBARG=$([ -f /etc/cert-platform/db.env ] || echo "--db /var/lib/cert-platform/platform.db")   # PostgreSQL 전환 후에는 db.env 의 CERT_DB 사용
 cat > /etc/systemd/system/cert-orch.service <<EOF
 [Unit]
 Description=Cert orchestrator daily run
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/cert-platform/env
-ExecStart=/usr/bin/python3 $P/ops_agents.py orchestrate "일일 운영 점검" --db /var/lib/cert-platform/platform.db
+ExecStart=/usr/bin/python3 $P/ops_agents.py orchestrate "일일 운영 점검" $DBARG
 EOF
 cat > /etc/systemd/system/cert-orch.timer <<EOF
 [Unit]
