@@ -47,7 +47,7 @@ async function open(scene, name) {
   const c = await browser.newContext({ viewport: { width: W, height: H }, locale: "ko-KR", bypassCSP: true, recordVideo: { dir, size: { width: W, height: H } } });
   await c.addInitScript(cursorScript);
   const p = await c.newPage();
-  const P = { scene, name, c, p, t0: Date.now(), pos: [640, 360] }; OPEN.add(P);
+  const P = { scene, name, c, p, t0: Date.now(), pos: [640, 360] };   // t0: 녹화 시작 시각(epoch ms) — 서버 로그 시각과 맞추는 기준 OPEN.add(P);
   p.on("pageerror", (e) => log(`[${scene}/${name}] pageerror ${e.message}`));
   return P;
 }
@@ -55,9 +55,9 @@ async function close(P) {
   OPEN.delete(P); await P.c.close();
   const f = await P.p.video().path();
   MK.videos = MK.videos.filter((v) => !(v.scene === P.scene && v.ctx === P.name));
-  MK.videos.push({ scene: P.scene, ctx: P.name, file: path.relative(OUT, f) });
+  MK.videos.push({ scene: P.scene, ctx: P.name, file: path.relative(OUT, f), t0: P.t0 });
 }
-const mark = (P, label) => { MK.marks.push({ scene: P.scene, ctx: P.name, label, t: +((Date.now() - P.t0) / 1000).toFixed(2) }); };
+const mark = (P, label) => { MK.marks.push({ scene: P.scene, ctx: P.name, label, t: +((Date.now() - P.t0) / 1000).toFixed(2), w: Date.now() }); };
 const settle = async (p) => { await p.waitForLoadState("networkidle").catch(() => {}); await sleep(400); };
 const api = (p, method, url, body) => p.evaluate(async ({ method, url, body }) => { const me = await (await fetch("api/me")).json().catch(() => ({}));
   const r = await fetch(url, { method, headers: { "Content-Type": "application/json", "X-CSRF-Token": me.csrf || "" }, body: body ? JSON.stringify(body) : undefined }); return { status: r.status, body: await r.json().catch(() => null) }; }, { method, url, body });

@@ -46,6 +46,7 @@ SCAN_ROOT: str | None = None
 DEPLOY_ROOT: Path = BASE / "deploy"
 STATIC = {"/": "web/index.html", "/index.html": "web/index.html", "/core.js": "web/core.js",
           "/xlsx-lite.js": "web/xlsx-lite.js", "/scanner.js": "web/scanner.js", "/guides.json": "guides/guides.json"}
+ACCESS_LOG = os.environ.get("CERT_ACCESS_LOG", "1") != "0"   # 접근·감사 로그를 표준 출력(journald)으로
 MAX_BODY = 2 * 1024 * 1024
 LOCK = threading.RLock()
 
@@ -138,6 +139,7 @@ class Http(Exception):
 class Handler(BaseHTTPRequestHandler):
     # ───────── 응답
     def _send(self, code, body: bytes, ctype, headers=None):
+        self._code = code
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -181,6 +183,7 @@ class Handler(BaseHTTPRequestHandler):
                 SESSIONS.pop(m.group(1), None)
                 return None
             s["seen"] = t
+            self._who = s["uid"]
             return {"sid": m.group(1), "csrf": s["csrf"], "user": u}
 
     def _require(self, method, action=None):
@@ -201,6 +204,8 @@ class Handler(BaseHTTPRequestHandler):
         return s
 
     def _audit(self, user, action, detail):
+        if ACCESS_LOG:
+            print(f"AUDIT {label(user) if isinstance(user, dict) else user} | {action} | {str(detail)[:200]}", flush=True)
         STORE.set("audit", "a_" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f") + secrets.token_hex(2),
                   {"at": now_iso(), "actor": label(user) if isinstance(user, dict) else user, "action": action, "detail": str(detail)[:300]})
 
@@ -212,7 +217,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._route_inner(method, path)
         finally:
             if path.startswith("/api/"):
-                ops_agents.record_perf(f"{method} {path}", (time.time() - t0) * 1000)
+                ms = (time.time() - t0) * 1000
+                ops_agents.record_perf(f"{method} {path}", ms)
+                if ACCESS_LOG:                                      # 접근 로그(journald가 시각 기록): 메서드 경로 · 상태 · 처리시간 · 사용자
+                    print(f"{method} {path} {getattr(self, '_code', '-')} {ms:.0f}ms user={getattr(self, '_who', '-')}", flush=True)
 
     def _route_inner(self, method, path):
         try:

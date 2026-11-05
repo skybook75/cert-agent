@@ -480,7 +480,7 @@ function renderDash() {
   $("p-dash").innerHTML = `
     <div class="tiles">
       <button class="tile acc" data-tile="cert:"><b>${certs.length}</b><span>${role() === "담당자" ? "내 담당 인증서" : "관리 중 인증서"} →</span></button>
-      <button class="tile warn" data-tile="cert:D-7"><b>${weekExpiring}</b><span>7일 내 만료 · 이미 만료된 건 제외 →</span></button>
+      <button class="tile warn" data-tile="cert:D-7"><b>${weekExpiring}</b><span>7일 내 만료 예정 →</span></button>
       <button class="tile crit" data-tile="cert:D-7"><b>${cnt["D-7"]}</b><span>D-7 (7일 이내) →</span></button>
       <button class="tile warn" data-tile="cert:D-30"><b>${cnt["D-30"]}</b><span>D-30 (30일 이내) →</span></button>
       <button class="tile crit" data-tile="cert:만료"><b>${cnt["만료"]}</b><span>만료 →</span></button>
