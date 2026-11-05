@@ -35,7 +35,7 @@ await sleep(1500);
 
 const browser = await chromium.launch();
 const ctx = async (who, mobile = false) => {
-  const c = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }, acceptDownloads: true, locale: "ko-KR", timezoneId: "Asia/Seoul" });
+  const c = await browser.newContext({ bypassCSP: true, viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }, acceptDownloads: true, locale: "ko-KR", timezoneId: "Asia/Seoul" });
   await c.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   const p = await c.newPage(); p.on("pageerror", (e) => console.log(`[pageerror:${who}]`, e.message)); p.on("dialog", (d) => d.dismiss());
   return p;

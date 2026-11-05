@@ -28,7 +28,7 @@ await sleep(1500);
 const browser = await chromium.launch();
 const steps = {};   // 사람이 화면에서 한 조작 수 (KPI 산정용)
 const ctx = async (who) => {
-  const c = await browser.newContext({ viewport: { width: 1360, height: 900 }, acceptDownloads: true, locale: "ko-KR", timezoneId: "Asia/Seoul" });
+  const c = await browser.newContext({ bypassCSP: true, viewport: { width: 1360, height: 900 }, acceptDownloads: true, locale: "ko-KR", timezoneId: "Asia/Seoul" });
   await c.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());   // 외부 글꼴은 테스트에서 제외
   const p = await c.newPage(); p.on("pageerror", (e) => console.log(`[pageerror:${who}]`, e.message));
   p.on("dialog", (d) => d.dismiss());

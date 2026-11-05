@@ -22,7 +22,7 @@ const LIVE = path.join(W, "web01/etc/nginx/ssl/shop");
 const tls = spawn("python3", ["tests/remote/tls_server.py", path.join(LIVE, "fullchain.pem"), path.join(LIVE, "privkey.key"), String(TLS)], { cwd: ROOT, stdio: "ignore" });
 await sleep(1500);
 const browser = await chromium.launch();
-const page = async () => { const c = await browser.newContext(); await c.route(/fonts\./, (r) => r.abort()); const p = await c.newPage(); p.on("pageerror", (e) => console.log("pageerror", e.message)); return p; };
+const page = async () => { const c = await browser.newContext({ bypassCSP: true }); await c.route(/fonts\./, (r) => r.abort()); const p = await c.newPage(); p.on("pageerror", (e) => console.log("pageerror", e.message)); return p; };
 const settle = async (p) => { await p.waitForLoadState("networkidle"); await sleep(250); };
 const api = (p, method, url, body) => p.evaluate(async ({ method, url, body }) => { const me = await (await fetch("api/me")).json().catch(() => ({}));
   const r = await fetch(url, { method, headers: { "Content-Type": "application/json", "X-CSRF-Token": me.csrf || "" }, body: body ? JSON.stringify(body) : undefined }); return { status: r.status, body: await r.json().catch(() => null) }; }, { method, url, body });
