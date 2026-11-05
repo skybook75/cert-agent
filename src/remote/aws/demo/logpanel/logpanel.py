@@ -32,16 +32,17 @@ def wrap(t, n=COLS):
     return rows + [o]
 
 
-def col(m):                                       # 터미널 색: 감사=노랑, 서버 Agent=하늘, 5xx·오류=빨강, 나머지=회색 (BGR)
+def col(m):                                       # 터미널 색: 감사=노랑, nginx=연두, 서버 Agent=하늘, 5xx·오류=빨강, 나머지=회색 (BGR)
     if re.search(r" 5\d\d \d+ms|Error|Traceback|실패 감지|결과 보고: 실패", m): return "&H6B6BFF&"
-    if " AUDIT " in m: return "&H7FE0F5&"
+    if " audit event=" in m or " AUDIT " in m: return "&H7FE0F5&"
+    if re.search(r'"(HEAD|GET|POST) [^"]*HTTP/1\.[01]"|nginx', m): return "&H8CE68C&"     # 웹서버(nginx) 로그 = 연두
     if re.search(r" (web01|was01|win01) ", m): return "&HF0D27C&"
     return "&HBDBDBD&"
 
 
 def ass(scene, D, t0=None):
     e = EV[scene]; t0 = e["t0"] if t0 is None else t0
-    items = sorted((ln[0] - t0, ln[1]) for ln in e["lines"])
+    items = sorted(((ln[0] - t0, ln[1]) for ln in e["lines"]), key=lambda a: a[0])   # 시각순(같은 시각은 원래 순서 유지)
     items = [(max(0.3, t), m) for t, m in items if t < D - 0.3]  # 장면 시작 전 줄은 시작 시 이미 화면에 있음
     box = f"m 0 0 l {PW} 0 l {PW} {PH} l 0 {PH}"
     ev = [f"Dialogue: 0,{ts(0)},{ts(D)},B,,0,0,0,,{{\\pos({X0},{Y0})\\p1}}{box}",
