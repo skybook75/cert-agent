@@ -2,7 +2,7 @@
 #   python3 logpanel.py <rec> <events.json> <out_rec>
 #   events.json: {"<scene>": {"title": "...", "t0": <장면 영상 0초의 UTC epoch 초>, "lines": [[epoch, "텍스트"], ...]}}
 #   같은 장면의 여러 창(deploy: admin/reviewer/approver)은 같은 시각 기준을 쓴다(동시에 열림).
-import json, subprocess, sys, shutil
+import json, re, subprocess, sys, shutil
 from pathlib import Path
 
 REC, EV, OUT = Path(sys.argv[1]), json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")), Path(sys.argv[3])
@@ -32,8 +32,15 @@ def wrap(t, n=COLS):
     return rows + [o]
 
 
-def ass(scene, D):
-    e = EV[scene]; t0 = e["t0"]
+def col(m):                                       # 터미널 색: 감사=노랑, 서버 Agent=하늘, 5xx·오류=빨강, 나머지=회색 (BGR)
+    if re.search(r" 5\d\d \d+ms|Error|Traceback|실패 감지|결과 보고: 실패", m): return "&H6B6BFF&"
+    if " AUDIT " in m: return "&H7FE0F5&"
+    if re.search(r" (web01|was01|win01) ", m): return "&HF0D27C&"
+    return "&HBDBDBD&"
+
+
+def ass(scene, D, t0=None):
+    e = EV[scene]; t0 = e["t0"] if t0 is None else t0
     items = sorted((ln[0] - t0, ln[1]) for ln in e["lines"])
     items = [(max(0.3, t), m) for t, m in items if t < D - 0.3]  # 장면 시작 전 줄은 시작 시 이미 화면에 있음
     box = f"m 0 0 l {PW} 0 l {PW} {PH} l 0 {PH}"
@@ -45,10 +52,10 @@ def ass(scene, D):
         else: groups.append((t, [m]))
     buf = []
     for i, (t, ms) in enumerate(groups):
-        new = [(r, True) for m in ms for r in wrap(m)]
-        buf = [(r, False) for r, _ in buf] + new
+        new = [(r, col(m)) for m in ms for r in wrap(m)]
+        buf = buf + new
         show = buf[-ROWS:]
-        txt = "\\N".join(("{\\c&H7CE3B8&}" if hot else "{\\c&HCFCFCF&}") + esc(r) for r, hot in show)
+        txt = "\\N".join("{\\c" + c + "}" + esc(r) for r, c in show)
         end = groups[i + 1][0] if i + 1 < len(groups) else D
         ev.append(f"Dialogue: 2,{ts(t)},{ts(end)},L,,0,0,0,,{{\\pos({X0 + 10},{Y0 + 30})}}{txt}")
     if not items:
@@ -68,7 +75,7 @@ for v in MK["videos"]:
     dst.parent.mkdir(parents=True, exist_ok=True)
     if v["scene"] not in EV:
         shutil.copy(src, dst); vids.append(v); continue
-    D = dur(src); a = dst.with_suffix(".ass"); a.write_text(ass(v["scene"], D), encoding="utf-8")
+    D = dur(src); a = dst.with_suffix(".ass"); a.write_text(ass(v["scene"], D, v["t0"] / 1000 if v.get("t0") else None), encoding="utf-8")   # 창별 실제 녹화 시작 시각
     out = dst.with_suffix(".mp4")
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-vf", f"subtitles={a}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-an", str(out)], check=True)
     vids.append({**v, "file": str(out.relative_to(OUT))}); print("panel", v["scene"], v["ctx"], f"{D:.1f}s")
