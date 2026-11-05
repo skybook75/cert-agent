@@ -92,7 +92,7 @@ def keypair():
 def hello(c):
     _, pub = keypair()
     r = call(c, "POST", "/api/agent-api/hello", {"os": f"{platform.system()} {platform.release()}", "version": VERSION, "pubkey": pub})
-    log(f"Plan: 등록 확인 → 호스트 {r['host']} · 배포 단계 {r.get('deploy_stage') or '없음'}")
+    log(f"plan: register host={r['host']} deploy_stage={r.get('deploy_stage') or 'none'}")
     return r
 
 
@@ -127,19 +127,19 @@ def collect(c, only_paths=None, target_ids=None):
             plat = []
         paths = list(dict.fromkeys(list(c.get("scan", [])) + plat))
         if plat:
-            log(f"플랫폼 등록 경로 {len(plat)}개 반영")
+            log(f"config: {len(plat)} scan path(s) from platform")
     else:
         paths = only_paths
     roots = [Path(x) for x in paths]
     files = [p for r in roots if r.exists() for p in sorted(r.rglob("*")) if p.is_file() and not p.is_symlink() and (p.suffix.lower() in EXTS or p.name.lower() == "signcert.der")]
-    log(f"Plan: 스캔 {len(roots)}개 경로 → 대상 {len(files)}개 파일 → PFX 비밀번호 요청 → 파싱 → 업로드")
+    log(f"scan: paths={len(roots)} files={len(files)} -> request pfx secrets -> parse -> upload")
     pfx = [norm(p) for p in files if p.suffix.lower() in (".pfx", ".p12")]
     wrapped = {}
     if pfx:
         k, _ = keypair()
         for f in call(c, "POST", "/api/agent-api/secrets", {"files": pfx})["files"]:
             wrapped[f["path"]] = f["candidates"]
-        log(f"보관함: PFX {len(pfx)}개 중 {sum(1 for v in wrapped.values() if v)}개에 비밀번호 후보(암호화 전달) 수신")
+        log(f"vault: received wrapped secrets for {sum(1 for v in wrapped.values() if v)}/{len(pfx)} pfx file(s) (RSA-OAEP)")
     out = []
     for p in files:
         item = {"path": norm(p)}
@@ -168,10 +168,10 @@ def collect(c, only_paths=None, target_ids=None):
         ps = f"Get-ChildItem Cert:\\{store} | ForEach-Object {{ $_.Thumbprint + ' ' + [Convert]::ToBase64String($_.RawData) }}"
         p = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=60)
         rows = [ln.split(" ", 1) for ln in p.stdout.splitlines() if " " in ln]
-        log(f"Windows 인증서 저장소 {store}: {len(rows)}개")
+        log(f"certstore: {store} entries={len(rows)}")
         out += [{"path": f"Cert:/{store.replace(chr(92), '/')}/{tp}", "ders": [b64]} for tp, b64 in rows]
     r = call(c, "POST", "/api/agent-api/ingest", {"files": out, "target_ids": target_ids or []})
-    log(f"업로드: 파일 {r['files']}개 → 승인 대기 {r['new_pending']}건(갱신본 {r['renewal_candidates']}) · 이미 관리 중 {r['known']} · 실패 {r['failed']}")
+    log(f"upload: files={r['files']} pending={r['new_pending']} renewal={r['renewal_candidates']} known={r['known']} failed={r['failed']}")
     return r
 
 
@@ -186,18 +186,23 @@ def served_fp(hostport, sni):
     ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
     with socket.create_connection((h, int(port)), timeout=10) as s, ctx.wrap_socket(s, server_hostname=sni) as t:
         der = t.getpeercert(binary_form=True)
-    return x509.load_der_x509_certificate(der).fingerprint(hashes.SHA256()).hex(":").upper()
+        t.sendall(f"HEAD / HTTP/1.1\r\nHost: {sni}\r\nUser-Agent: cert-agent/1.0 (verify)\r\nConnection: close\r\n\r\n".encode())
+        try:
+            status = t.recv(64).split(b"\r\n", 1)[0].split(b" ")[1].decode()     # 실제 HTTP 응답 코드(웹서버 접근 로그에도 남음)
+        except (OSError, IndexError):
+            status = "-"
+    return x509.load_der_x509_certificate(der).fingerprint(hashes.SHA256()).hex(":").upper(), status
 
 
 def deploy(c):
     tasks = call(c, "GET", "/api/agent-api/deploy-tasks")["tasks"]
     if not tasks:
-        log("배포: 적용할 승인 배포 없음")
+        log("deploy: no approved task")
         return []
     svc = c.get("service", {})
     done = []
     for t in tasks:
-        log(f"Plan: {t['subject_cn']} → {t['stage']} · 대상 파일 {len(t['targets'])}개 · 백업 → 교체 → 설정 검사 → 재적용 → 응답 확인 → (실패 시) 원복")
+        log(f"deploy: task cn={t['subject_cn']} stage={t['stage']} files={len(t['targets'])} plan=backup,replace,configtest,reload,verify,rollback-on-fail")
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
         backups, ok, detail, fp = [], False, "", ""
         try:
@@ -214,29 +219,31 @@ def deploy(c):
                 blocks = old.split("-----END CERTIFICATE-----")
                 chain = "-----END CERTIFICATE-----".join(blocks[1:]).strip() if len(blocks) > 2 else ""
                 p.write_text(new_leaf + (chain + "\n" if chain else ""))
-                log(f"교체: {p} (백업 {b.name})")
+                log(f"replace: {p} (backup {b.name})")
             if not backups:
                 raise RuntimeError("교체할 PEM 파일이 없음")
             if svc.get("check"):
                 rc, outp = sh(svc["check"])
-                log(f"설정 검사: {svc['check']} → {'OK' if rc == 0 else '실패'} {outp[-120:]}")
+                log(f"configtest: {svc['check']} rc={rc}")
+                for ln in outp.splitlines()[-2:]:
+                    log(f"  {ln}")
                 if rc:
                     raise RuntimeError(f"설정 검사 실패: {outp[-200:]}")
             if svc.get("reload"):
                 rc, outp = sh(svc["reload"])
                 if rc:
                     raise RuntimeError(f"재적용 실패: {outp[-200:]}")
-                log(f"재적용: {svc['reload']} → OK")
+                log(f"reload: {svc['reload']} rc=0")
                 time.sleep(1)
             if svc.get("verify"):
-                fp = served_fp(svc["verify"], t["subject_cn"].lstrip("*."))
-                log(f"응답 확인: {svc['verify']} 가 보내는 인증서 지문 {fp[:23]}… {'= 배포본' if fp == t['fingerprint'] else '≠ 배포본'}")
+                fp, status = served_fp(svc["verify"], t["subject_cn"].lstrip("*."))
+                log(f"verify: {svc['verify']} sni={t['subject_cn'].lstrip('*.')} http={status} served_sha256={fp[:23]}... {'MATCH' if fp == t['fingerprint'] else 'MISMATCH'}")
                 if fp != t["fingerprint"]:
                     raise RuntimeError("서버가 보내는 인증서가 배포본과 다름")
             ok, detail = True, f"설치·검사·재적용·응답 확인 완료 ({len(backups)}개 파일)"
         except Exception as e:  # noqa: BLE001
             detail = str(e)[:300]
-            log(f"Self-Correction: 실패 감지({detail[:80]}) → 백업으로 자동 원복")
+            log(f"rollback: failure detected -> restoring {len(backups)} backup(s) and reloading")
             for p, b in backups:
                 shutil.copy2(b, p)
             if backups and svc.get("reload"):
@@ -244,7 +251,7 @@ def deploy(c):
             detail += " → 백업 파일로 자동 원복"
         call(c, "POST", "/api/agent-api/deploy-result", {"env_id": t["env_id"], "cert_id": t["cert_id"], "ok": ok, "detail": detail,
                                                        "served_fingerprint": fp, "rolled_back": not ok})
-        log(f"결과 보고: {'성공' if ok else '실패'} · {detail}")
+        log(f"report: env={t['env_id']} ok={str(ok).lower()} rolled_back={str(not ok).lower()}")
         done.append({"task": t["env_id"], "ok": ok})
     return done
 
@@ -253,7 +260,7 @@ def poll(c):
     """1분마다: 플랫폼의 '수집 실행' 요청과 승인된 배포만 확인(가벼움)."""
     tasks = call(c, "GET", "/api/agent-api/collect-tasks").get("tasks", [])
     for t in tasks:
-        log(f"수집 실행 요청: {t['name']} ({len(t['paths'])}개 경로)")
+        log(f"collect: run requested target={t['target_id']} paths={len(t['paths'])}")
         collect(c, t["paths"], [t["target_id"]])
     deploy(c)
 

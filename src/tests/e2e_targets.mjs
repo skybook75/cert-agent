@@ -52,7 +52,7 @@ try {
   const rv = await api(A, "POST", "api/users", { username: "rev", name: "이검토", email: "r@x.test", role: "검토자", password: "Temp2026a" });
   // 서버 Agent: 로컬 설정 없이 플랫폼 경로로 수집
   const o1 = agent("collect");
-  ok("서버 Agent가 플랫폼에 등록된 경로를 받아 수집(로컬 설정 불필요)", /플랫폼 등록 경로 1개/.test(o1) && /승인 대기 2건/.test(o1), o1.match(/업로드:[^\n]*/)?.[0]);
+  ok("서버 Agent가 플랫폼에 등록된 경로를 받아 수집(로컬 설정 불필요)", /config: 1 scan path/.test(o1) && /pending=2 /.test(o1), o1.match(/upload:[^\n]*/)?.[0]);
   // '수집 실행' 요청 → poll
   await O.locator("#tabs button[data-tab=targets]").click(); await settle(O);
   const webRow = O.locator("#p-targets tr", { hasText: "쇼핑몰 웹" });
@@ -61,9 +61,9 @@ try {
   const p1 = agent("poll");
   await O.reload(); await settle(O); await O.locator("#tabs button[data-tab=targets]").click(); await settle(O);
   const after = await O.locator("#p-targets tr", { hasText: "쇼핑몰 웹" }).textContent();
-  ok("'수집 실행' → 요청 대기 → Agent poll 이 가져가 실행 → 최근 수집 결과 표시", /실행 요청됨/.test(queued) && /수집 실행 요청: 쇼핑몰 웹/.test(p1) && /수집 \d+개/.test(after), after.replace(/\s+/g, " ").slice(0, 160));
+  ok("'수집 실행' → 요청 대기 → Agent poll 이 가져가 실행 → 최근 수집 결과 표시", /실행 요청됨/.test(queued) && /collect: run requested target=/.test(p1) && /수집 \d+개/.test(after), after.replace(/\s+/g, " ").slice(0, 160));
   const p2 = agent("poll");
-  ok("같은 요청은 한 번만 실행", !/수집 실행 요청/.test(p2));
+  ok("같은 요청은 한 번만 실행", !/collect: run requested/.test(p2));
   // SSH 방식: 접속 불가 주소 → 실패 사유 기록
   const sshRow = O.locator("#p-targets tr", { hasText: "레거시 WAS" });
   await sshRow.locator("[data-trun]").click(); await settle(O); await sleep(500);

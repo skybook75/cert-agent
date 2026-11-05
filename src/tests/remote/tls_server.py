@@ -6,7 +6,8 @@ def handle(c):
     try:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); ctx.load_cert_chain(cert, key)
         with ctx.wrap_socket(c, server_side=True) as t:
-            t.recv(10)
+            if t.recv(1024):
+                t.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
     except Exception:
         pass
 while True:

@@ -325,13 +325,24 @@ def _restart_soon():
         threading.Thread(target=go, daemon=True).start()
 
 
+def _mlog(msg):                                    # 유지보수 AI 실행 로그(journald, 영문)
+    print(f"maint: {msg}", flush=True)
+
+
+def _en_test(name):
+    return (name.replace("파이썬 컴파일", "py_compile").replace("JS 문법", "js_syntax").replace("(내장 스크립트)", " (inline script)")
+            .replace("임시 서버 기동 후", "smoke: temp server").encode("ascii", "replace").decode())
+
+
 def improve(store, request: str, actor: str) -> dict:
     """요청 → (LLM) 분석·수정안 → 사본에서 테스트 → 통과 시 반영. 결과 리포트 저장."""
     rid = "rp_" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    _mlog(f"request id={rid} chars={len(request)}")
     rep = {"type": "report", "request": request[:2000], "actor": actor, "at": now_iso(), "steps": [], "status": "진행"}
     step = lambda name, detail="", ok=True: rep["steps"].append({"step": name, "detail": str(detail)[:3000], "ok": ok, "at": now_iso()})
 
     fm = _file_map()
+    _mlog(f"plan: analyze -> select files -> patch -> test on temp copy -> apply if green (editable={len(fm)})")
     step("Plan", f"요청 분석 → 관련 파일 선택 → 수정안 작성 → 임시 사본 테스트 → 통과 시 반영. 수정 가능 파일 {len(fm)}개")
     pick = _json_block(llm("너는 인증서 관리 플랫폼의 유지보수 Agent다. 사용자 요청을 해결하려면 어떤 파일을 봐야 하는지 고른다.\n"
                            f"요청: {request}\n파일 목록(개요): {json.dumps(fm, ensure_ascii=False)[:12000]}\n"
@@ -339,10 +350,12 @@ def improve(store, request: str, actor: str) -> dict:
     if not pick:
         rep.update(status="보류", summary="Claude API 키가 없어 코드 수정은 할 수 없습니다. 자가 진단의 규칙형 조치(알림 재실행·재발송 등)는 동작합니다.")
         step("LLM 확인", "ANTHROPIC_API_KEY 미설정 → 코드 수정 보류", False)
+        _mlog("llm: no API key -> code change skipped")
         store.set("maint", rid, rep)
         return dict(rep, id=rid)
     files = [f for f in pick.get("files", []) if f in EDITABLE][:3] or ["web/index.html"]
     step("분석", pick.get("analysis", ""))
+    _mlog(f"llm: analysis done -> files={','.join(files)}")
     feedback = ""
     for attempt in range(1, 4):                        # 최초 + Self-Correction 2회
         src = {f: (BASE / f).read_text(encoding="utf-8") for f in files}
@@ -358,6 +371,7 @@ def improve(store, request: str, actor: str) -> dict:
             step(f"수정안 {attempt}차", "수정안을 만들지 못함", False)
             feedback = "JSON 형식의 edits 가 없었다"
             continue
+        _mlog(f"patch: attempt={attempt} " + " ".join(f"{e.get('file')}(-{len(e.get('old', ''))}c/+{len(e.get('new', ''))}c)" for e in plan["edits"]))
         step(f"수정안 {attempt}차", plan.get("summary", "") + "\n" + "\n".join(f"- {e.get('file')}: {len(e.get('old', ''))}자 → {len(e.get('new', ''))}자" for e in plan["edits"]))
         work = Path(tempfile.mkdtemp(prefix="maint_"))
         try:
@@ -376,6 +390,9 @@ def improve(store, request: str, actor: str) -> dict:
             tests = gate_tests(work)
             rep["tests"] = tests
             passed = all(t["ok"] for t in tests)
+            for t in tests:
+                _mlog(f"gate: {'PASS' if t['ok'] else 'FAIL'} {_en_test(t['test'])}")
+            _mlog(f"gate: {sum(t['ok'] for t in tests)}/{len(tests)} passed")
             step(f"자동 테스트 {attempt}차", "\n".join(f"{'✓' if t['ok'] else '✗'} {t['test']} {t['detail'][:120]}" for t in tests), passed)
             if not passed:
                 feedback = "; ".join(f"{t['test']}: {t['detail'][:200]}" for t in tests if not t["ok"])
@@ -394,6 +411,7 @@ def improve(store, request: str, actor: str) -> dict:
                 shutil.copy2(work / rel, BASE / rel)
             rep.update(status="반영", summary=plan.get("summary", ""), files=changed, diff="\n".join(diffs), backup=str(bdir), attempts=attempt)
             step("반영", f"{', '.join(changed)} 교체 · 백업 {bdir.name} · 서버 재시작")
+            _mlog(f"apply: {','.join(changed)} backup={bdir.name} -> restarting service")
             store.set("maint", rid, rep)
             store.set("audit", "a_maint_" + rid, {"at": now_iso(), "actor": f"유지보수 Agent(요청 {actor})", "action": "코드 개선 반영",
                                                    "detail": f"{request[:120]} → {', '.join(changed)} (테스트 {len(tests)}개 통과)"})

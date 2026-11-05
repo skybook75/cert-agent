@@ -1,5 +1,5 @@
 {
- "at": "2026-11-05T13:24:47.294Z",
+ "at": "2026-11-05T14:19:04.089Z",
  "pass": 59,
  "total": 59,
  "steps": {
@@ -77,7 +77,7 @@
   {
    "name": "DB에는 암호문만(AES-256-GCM), 평문·키 없음",
    "pass": true,
-   "detail": "평문 0건 · 키 0건 · AES-256-GCM nonce pJB/Gje8ge8F7Y20"
+   "detail": "평문 0건 · 키 0건 · AES-256-GCM nonce lQ7+GWoNKhVnnquM"
   },
   {
    "name": "API로 평문·암호문 조회 불가",

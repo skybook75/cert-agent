@@ -57,8 +57,8 @@ try {
   // ── 수집
   const o1 = agent("web01", "collect"), o2 = agent("was01", "collect");
   console.log(o1 + o2);
-  ok("web01 수집: 체인 2건(서버+중간 CA) 승인 대기, 개인키 파일은 대상 아님", /승인 대기 2건/.test(o1), o1.match(/업로드:[^\n]*/)?.[0]);
-  ok("was01 수집: PFX 비밀번호를 Agent 공개키로 암호화 전달받아 열기", /비밀번호 후보\(암호화 전달\) 수신/.test(o2) && /승인 대기 1건/.test(o2), o2.match(/업로드:[^\n]*/)?.[0]);
+  ok("web01 수집: 체인 2건(서버+중간 CA) 승인 대기, 개인키 파일은 대상 아님", /pending=2 /.test(o1), o1.match(/upload:[^\n]*/)?.[0]);
+  ok("was01 수집: PFX 비밀번호를 Agent 공개키로 암호화 전달받아 열기", /vault: received wrapped secrets for 1\/1/.test(o2) && /pending=1 /.test(o2), o2.match(/upload:[^\n]*/)?.[0]);
   const dbTxt = execFileSync("python3", ["tools/dbdump.py", path.join(W, "p.db")], { cwd: ROOT }).toString();
   ok("DB·Agent 로그에 비밀번호 평문 없음", !dbTxt.includes("Tomcat!2026") && !o2.includes("Tomcat!2026"));
   await A.reload(); await settle(A); await tab(A, "수집 승인");
@@ -71,7 +71,7 @@ try {
   // ── 갱신본 → 4단계 배포 → 서버 적용
   const fpNew = JSON.parse(py("tests/remote/make_remote.py", W, "renew")).renew;
   const o3 = agent("web01", "collect");
-  ok("새 인증서를 incoming 에 두면 갱신본으로 인식", /갱신본 1/.test(o3), o3.match(/업로드:[^\n]*/)?.[0]);
+  ok("새 인증서를 incoming 에 두면 갱신본으로 인식", /renewal=1 /.test(o3), o3.match(/upload:[^\n]*/)?.[0]);
   await A.reload(); await settle(A); await tab(A, "수집 승인"); await decideAll();
   const RV = await page(), AP = await page();
   await login(RV, "rev", "Temp2026a", "Review2026"); await login(AP, "apr", "Temp2026a", "Approve2026");
@@ -87,12 +87,12 @@ try {
   ok("갱신본 4단계 승인(플랫폼)", p1.every((x) => x.endsWith("완료")) && p1.length === 4, p1.join(" "));
   const d1 = agent("web01", "deploy"); console.log(d1);
   const served = execFileSync("sh", ["-c", `echo | openssl s_client -connect 127.0.0.1:${TLS} -servername shop.demo.test 2>/dev/null | openssl x509 -noout -fingerprint -sha256`]).toString().trim().split("=")[1];
-  ok("배포 Agent: 설치 → 설정 검사 → 재적용 → 실제 응답 지문 = 배포본", /결과 보고: 성공/.test(d1) && served === fpNew, `${served?.slice(0, 23)}… · ${d1.match(/응답 확인:[^\n]*/)?.[0]}`);
+  ok("배포 Agent: 설치 → 설정 검사 → 재적용 → 실제 응답 지문 = 배포본", /report: .*ok=true/.test(d1) && /verify: .* MATCH/.test(d1) && served === fpNew, `${served?.slice(0, 23)}… · ${d1.match(/verify:[^\n]*/)?.[0]}`);
   ok("체인 유지: 맨 앞 서버 인증서만 교체, 중간 CA 유지", (fs.readFileSync(path.join(LIVE, "fullchain.pem"), "utf8").match(/BEGIN CERTIFICATE/g) || []).length === 2);
   const env1 = (await api(A, "GET", "api/db/environments")).body.find((e) => e.stage === "prod");
   ok("플랫폼에 서버 적용 결과 기록", env1.applied?.web01?.ok === true, env1.applied?.web01?.detail);
   const d1b = agent("web01", "deploy");
-  ok("이미 적용된 배포는 다시 하지 않음", /적용할 승인 배포 없음/.test(d1b));
+  ok("이미 적용된 배포는 다시 하지 않음", /deploy: no approved task/.test(d1b));
   // ── 잘못된 인증서(키 불일치) → 설정 검사 실패 → 자동 원복
   py("tests/remote/make_remote.py", W, "badrenew");
   agent("web01", "collect"); await A.reload(); await settle(A); await tab(A, "수집 승인"); await decideAll();
@@ -100,7 +100,7 @@ try {
   const d2 = agent("web01", "deploy"); console.log(d2);
   const served2 = execFileSync("sh", ["-c", `echo | openssl s_client -connect 127.0.0.1:${TLS} -servername shop.demo.test 2>/dev/null | openssl x509 -noout -fingerprint -sha256`]).toString().trim().split("=")[1];
   const env2 = (await api(A, "GET", "api/db/environments")).body.find((e) => e.stage === "prod");
-  ok("키가 맞지 않는 인증서: 설정 검사 실패 → 백업으로 자동 원복, 서비스는 기존 인증서 유지", /설정 검사 실패/.test(d2) && /자동 원복/.test(d2) && served2 === fpNew && env2.applied?.web01?.ok === false,
+  ok("키가 맞지 않는 인증서: 설정 검사 실패 → 백업으로 자동 원복, 서비스는 기존 인증서 유지", /configtest: .* rc=[1-9]/.test(d2) && /rollback: failure detected/.test(d2) && served2 === fpNew && env2.applied?.web01?.ok === false,
     `${p2.join(" ")} · ${env2.applied?.web01?.detail?.slice(0, 120)}`);
   await A.reload(); await settle(A); await tab(A, "배포");
   const board = await A.textContent("#p-deploy");

@@ -1,6 +1,6 @@
 {
- "at": "2026-11-04T19:37:57.874Z",
- "seconds": 60,
+ "at": "2026-11-05T14:21:21.931Z",
+ "seconds": 61,
  "pass": 51,
  "total": 51,
  "scenarios": [
@@ -37,7 +37,7 @@
      "caption": "관리 탭: 역할별 사용자 8명과 SMTP 설정"
     }
    ],
-   "started": "2026-11-04T19:36:57.723Z"
+   "started": "2026-11-05T14:20:20.825Z"
   },
   {
    "id": "S02",
@@ -68,7 +68,7 @@
     {
      "action": "수정본 업로드",
      "expected": "정상 9건 · 오류 없음",
-     "actual": "정상 9건 오류 없음\n        \n        등록할 9건 미리 보기행인증서명발급기관만료일담당자이메일업무4shop.skax-demo.co.krDigiCert2027-06-03김민수minsu.kim@skax-demo.co.kr쇼핑몰5api.skax-demo.co.krLet's Encrypt2027-01-25이서연seoyeon.lee@skax-demo.co.kr오픈API6www.skax-demo.co.krSectigo2026-11-11박지훈jihoon.park@skax-demo.co.kr대표홈페이지7*.skax-demo.co.krGlobalSign2027-11-20박지훈jihoon.park@skax-demo.co.kr공통8pay.skax-demo.co.krDigiCert2026-12-20이서연seoyeon.lee@skax-demo.co.kr결제9erp.skax-demo.co.krDigiCert2026-11-02정하늘haneul.jung@skax-demo.co.krERP10portal.skax-demo.co.krGlobalSign2026-11-20김민수minsu.kim@skax-demo.co.kr그룹포털11hr.skax-demo.co.krGlobalSign2027-03-05최유진yujin.choi@skax-demo.co.kr인사12old-gw.skax-demo.co.krThawte2026-12-01김민수minsu.kim@skax-demo.co.kr구 그룹웨어\n        검증된 9건 등록취소\n        \n      \n    \n    관리대장 ↔ 수집 결과 대조\n      승인 대기 중인 수집 결과를 관리대장과 비교합니다. 일치",
+     "actual": "정상 9건 오류 없음\n        \n        등록할 9건 미리 보기행인증서명발급기관만료일담당자이메일업무4shop.skax-demo.co.krDigiCert2027-06-04김민수minsu.kim@skax-demo.co.kr쇼핑몰5api.skax-demo.co.krLet's Encrypt2027-01-26이서연seoyeon.lee@skax-demo.co.kr오픈API6www.skax-demo.co.krSectigo2026-11-12박지훈jihoon.park@skax-demo.co.kr대표홈페이지7*.skax-demo.co.krGlobalSign2027-11-21박지훈jihoon.park@skax-demo.co.kr공통8pay.skax-demo.co.krDigiCert2026-12-21이서연seoyeon.lee@skax-demo.co.kr결제9erp.skax-demo.co.krDigiCert2026-11-03정하늘haneul.jung@skax-demo.co.krERP10portal.skax-demo.co.krGlobalSign2026-11-21김민수minsu.kim@skax-demo.co.kr그룹포털11hr.skax-demo.co.krGlobalSign2027-03-06최유진yujin.choi@skax-demo.co.kr인사12old-gw.skax-demo.co.krThawte2026-12-01김민수minsu.kim@skax-demo.co.kr구 그룹웨어\n        검증된 9건 등록취소\n        \n      \n    \n    관리대장 ↔ 수집 결과 대조\n      승인 대기 중인 수집 결과를 관리대장과 비교합니다. 일치",
      "pass": true,
      "note": ""
     },
@@ -97,7 +97,7 @@
      "caption": "수정본 등록 후: 대장 9건이 모두 '미수집' 상태로 대조 대기"
     }
    ],
-   "started": "2026-11-04T19:37:03.810Z"
+   "started": "2026-11-05T14:20:26.921Z"
   },
   {
    "id": "S03",
@@ -128,7 +128,7 @@
     {
      "action": "불일치 변경 전·후",
      "expected": "api 만료일 대장값 → 수집값",
-     "actual": "만료일: 2027-01-25 → 2026-11-25",
+     "actual": "만료일: 2027-01-26 → 2026-11-26",
      "pass": true,
      "note": ""
     }
@@ -139,7 +139,7 @@
      "caption": "1차 수집 후 대조: 불일치는 변경 전→후, PFX는 비밀번호가 없어 미수집"
     }
    ],
-   "started": "2026-11-04T19:37:05.675Z"
+   "started": "2026-11-05T14:20:28.802Z"
   },
   {
    "id": "S04",
@@ -198,7 +198,7 @@
     {
      "action": "보관 상태 확인",
      "expected": "암호문만 저장(DB에 평문 0건), 사용 횟수·마지막 파일 기록",
-     "actual": "등록 2개 · portal.pfx: 사용 1회, Tomcat 키스토어(결제·ERP): 사용 2회 · DB 평문 0건",
+     "actual": "등록 2개 · Tomcat 키스토어(결제·ERP): 사용 2회, portal.pfx: 사용 1회 · DB 평문 0건",
      "pass": true,
      "note": ""
     }
@@ -213,7 +213,7 @@
      "caption": "관리자 보관함: 등록 2건(폴더·파일 범위), 사용 횟수·최근 사용 파일 기록, 평문 조회 불가"
     }
    ],
-   "started": "2026-11-04T19:37:06.889Z"
+   "started": "2026-11-05T14:20:30.019Z"
   },
   {
    "id": "S05",
@@ -244,7 +244,7 @@
     {
      "action": "불일치 건: 수집값으로 대장 갱신 + 차이 기록, 담당자 유지",
      "expected": "api 만료일 수집값, 담당 이서연",
-     "actual": "2026-11-25 · 이서연 · 차이 {\"after\":\"2026-11-25\",\"field\":\"not_after\",\"label\":\"만료일\",\"before\":\"2027-01-25\"}",
+     "actual": "2026-11-25 · 이서연 · 차이 {\"field\":\"not_after\",\"label\":\"만료일\",\"before\":\"2027-01-26\",\"after\":\"2026-11-26\"}",
      "pass": true,
      "note": ""
     },
@@ -273,7 +273,7 @@
      "caption": "승인 후 대조: 확인 완료와 미수집(폐기 서버·hr.pfx)만 남음"
     }
    ],
-   "started": "2026-11-04T19:37:12.626Z"
+   "started": "2026-11-05T14:20:35.775Z"
   },
   {
    "id": "S06",
@@ -311,7 +311,7 @@
     {
      "action": "메일 내용",
      "expected": "제목에 단계, 본문에 만료일·남은 일수·저장 위치",
-     "actual": "[D-7] www.skax-demo.co.kr 인증서 만료 6일 전 / 박지훈님, 안녕하세요.\n\nwww.skax-demo.co.kr (발급: Sectigo RSA Domain Validation Secure Server CA) 인증서의 만료일은 2026-11-11 입니다. 남은 기간은 ",
+     "actual": "[D-7] www.skax-demo.co.kr 인증서 만료 7일 전 / 박지훈님, 안녕하세요.\n\nwww.skax-demo.co.kr (발급: Sectigo RSA Domain Validation Secure Server CA) 인증서의 만료일은 2026-11-12 입니다. 남은 기간은 ",
      "pass": true,
      "note": ""
     },
@@ -333,7 +333,7 @@
      "caption": "담당자 대시보드: 본인 담당 인증서와 할 일만 표시"
     }
    ],
-   "started": "2026-11-04T19:37:23.805Z"
+   "started": "2026-11-05T14:20:47.021Z"
   },
   {
    "id": "S07",
@@ -350,7 +350,7 @@
     {
      "action": "분류",
      "expected": "갱신본 + 기존 만료일 표시",
-     "actual": "갱신본기존 만료 2026-11-11 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 반려",
+     "actual": "갱신본기존 만료 2026-11-12 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 승인 | 반려",
      "pass": true,
      "note": ""
     },
@@ -363,7 +363,7 @@
     }
    ],
    "shots": [],
-   "started": "2026-11-04T19:37:27.365Z"
+   "started": "2026-11-05T14:20:51.114Z"
   },
   {
    "id": "S08",
@@ -416,7 +416,7 @@
      "caption": "배포 현황판: 단계별 상태, 원복 사유, 운영 환경 현재 인증서"
     }
    ],
-   "started": "2026-11-04T19:37:29.997Z"
+   "started": "2026-11-05T14:20:53.821Z"
   },
   {
    "id": "S09",
@@ -444,7 +444,7 @@
      "caption": "보고서: 갱신 상태별 집계와 지연 목록"
     }
    ],
-   "started": "2026-11-04T19:37:49.301Z"
+   "started": "2026-11-05T14:21:13.285Z"
   },
   {
    "id": "S10",
@@ -486,7 +486,7 @@
      "caption": "감사 로그 검색(PFX): 비밀번호 등록·교체가 값 없이 기록"
     }
    ],
-   "started": "2026-11-04T19:37:50.639Z"
+   "started": "2026-11-05T14:21:14.633Z"
   },
   {
    "id": "S11",
@@ -496,7 +496,7 @@
     {
      "action": "인증서 질문",
      "expected": "새 만료일·담당 박지훈",
-     "actual": "등록 인증서 정보:\n- www.skax-demo.co.kr: 발급기관 Sectigo RSA Domain Validation Secure Server CA, 만료일 2027-12-05(KST), 상태 정상(만료 31일 이상 남음), 남은 일수 395일, 갱신 상태 미조치, 담당자 박지훈,",
+     "actual": "등록 인증서 정보:\n- www.skax-demo.co.kr: 발급기관 Sectigo RSA Domain Validation Secure Server CA, 만료일 2027-12-06(KST), 상태 정상(만료 31일 이상 남음), 남은 일수 396일, 갱신 상태 미조치, 담당자 박지훈,",
      "pass": true,
      "note": ""
     },
@@ -521,7 +521,7 @@
      "caption": "QA(서버판): 등록 정보·업로드 PDF 근거 답변, 비밀번호 요구 차단"
     }
    ],
-   "started": "2026-11-04T19:37:53.590Z"
+   "started": "2026-11-05T14:21:17.630Z"
   },
   {
    "id": "S12",
@@ -542,11 +542,11 @@
      "caption": "휴대폰(390px): 표가 카드로 바뀌어 버튼이 바로 보임"
     }
    ],
-   "started": "2026-11-04T19:37:56.106Z"
+   "started": "2026-11-05T14:21:20.154Z"
   }
  ],
  "data": {
-  "generated_at": "2026-11-04T19:36:55.656560+00:00",
+  "generated_at": "2026-11-05T14:20:18.746461+00:00",
   "files": [
    {
     "path": "web01-nginx/etc/nginx/ssl/shop.skax-demo.co.kr/fullchain.pem",

@@ -47,6 +47,12 @@ DEPLOY_ROOT: Path = BASE / "deploy"
 STATIC = {"/": "web/index.html", "/index.html": "web/index.html", "/core.js": "web/core.js",
           "/xlsx-lite.js": "web/xlsx-lite.js", "/scanner.js": "web/scanner.js", "/guides.json": "guides/guides.json"}
 ACCESS_LOG = os.environ.get("CERT_ACCESS_LOG", "1") != "0"   # 접근·감사 로그를 표준 출력(journald)으로
+AUDIT_EVENT = {"로그인": "auth.login", "로그인 실패": "auth.login_failed", "비밀번호 변경": "auth.password_change", "최초 관리자 생성": "user.bootstrap",
+               "사용자 생성": "user.create", "사용자 변경": "user.update", "SMTP 설정 변경": "settings.smtp", "알림 채널 테스트": "notify.test",
+               "PFX 비밀번호 등록": "vault.create", "PFX 비밀번호 교체": "vault.rotate", "PFX 비밀번호 삭제": "vault.delete",
+               "PFX 비밀번호 전달(암호화)": "vault.release_wrapped", "서버 Agent 등록": "agent.register", "서버 Agent 삭제": "agent.delete",
+               "서버 적용": "deploy.applied", "수집 대상 등록": "target.create", "수집 대상 수정": "target.update", "수집 대상 삭제": "target.delete",
+               "수집 실행 요청": "collect.requested", "수집 실행(SSH)": "collect.ssh", "자가 진단": "maint.diagnose", "진단 항목 반영": "maint.fix"}
 MAX_BODY = 2 * 1024 * 1024
 LOCK = threading.RLock()
 
@@ -203,9 +209,11 @@ class Handler(BaseHTTPRequestHandler):
             raise Http(403, f"권한이 없습니다 ({s['user']['role']}: {ACTION_LABEL.get(action, action)})")
         return s
 
-    def _audit(self, user, action, detail):
-        if ACCESS_LOG:
-            print(f"AUDIT {label(user) if isinstance(user, dict) else user} | {action} | {str(detail)[:200]}", flush=True)
+    def _audit(self, user, action, detail, code=None):
+        if ACCESS_LOG:                                    # 로그는 영문 이벤트 코드·계정 ID·식별자만 (화면용 한글 이력은 DB에)
+            who = (user.get("id") or user.get("username", "-")) if isinstance(user, dict) else re.sub(r"\(.*$", "", str(user))
+            ids = " ".join(dict.fromkeys(re.findall(r"[A-Za-z0-9][A-Za-z0-9_.:/@-]{2,}", str(detail))))[:160]
+            print(f"audit event={code or AUDIT_EVENT.get(action, 'other')} actor={who.encode('ascii', 'replace').decode()}" + (f" ref={ids}" if ids else ""), flush=True)
         STORE.set("audit", "a_" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f") + secrets.token_hex(2),
                   {"at": now_iso(), "actor": label(user) if isinstance(user, dict) else user, "action": action, "detail": str(detail)[:300]})
 
@@ -889,7 +897,7 @@ class Handler(BaseHTTPRequestHandler):
             lab = ACTION_LABEL[action]
             if action == "discovery.decide":   # 승인과 반려를 이력에서 구분 (반려는 discoveries 상태만 바꿈)
                 lab = "수집 반려" if all(o.get("coll") == "discoveries" and (o.get("data") or {}).get("status") == "반려" for o in ops) else "수집 승인"
-            self._audit(user, lab, summary or f"{len(ops)}건")
+            self._audit(user, lab, summary or f"{len(ops)}건", code=action + (".reject" if lab == "수집 반려" else ""))
         return self._json({"ok": True, **result})
 
     # 상태 전이·직무 분리·배포 파일 반영
@@ -1036,10 +1044,10 @@ def main(argv=None):
             fh.write(json.dumps(SESSIONS))
     ops_agents.BEFORE_RESTART.append(_save_sessions)
     url = f"http://localhost:{a.port}"
-    print(f"인증서 관리 플랫폼: {url}\n  DB: {STORE.describe()}{'' if agents.is_pg(a.db) else ' ' + a.db}\n  스캔 폴더: {SCAN_ROOT or '(미지정)'}\n  배포 폴더: {DEPLOY_ROOT}\n"
-          f"  PFX 비밀번호 보관함: {vault_mod.ALG}, 키 {VAULT.source}\n"
-          f"  Claude 챗봇: {'사용' if os.environ.get('ANTHROPIC_API_KEY') else '키 없음 → 검색형 답변'}\n"
-          f"  계정: {'없음 → 브라우저에서 최초 관리자 생성' if not STORE.list('users') else '로그인 필요'}")
+    print(f"cert-platform listening on {url}\n  db: {STORE.describe()}{'' if agents.is_pg(a.db) else ' ' + a.db}\n  scan_root: {SCAN_ROOT or '-'}\n  deploy_root: {DEPLOY_ROOT}\n"
+          f"  vault: {vault_mod.ALG} key={VAULT.source}\n"
+          f"  llm: {'enabled' if os.environ.get('ANTHROPIC_API_KEY') else 'disabled (search-only answers)'}\n"
+          f"  accounts: {'none (create first admin in browser)' if not STORE.list('users') else 'login required'}", flush=True)
     if not a.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     ThreadingHTTPServer((a.host, a.port), Handler).serve_forever()

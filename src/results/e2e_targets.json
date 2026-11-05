@@ -22,12 +22,12 @@
  {
   "name": "서버 Agent가 플랫폼에 등록된 경로를 받아 수집(로컬 설정 불필요)",
   "pass": true,
-  "detail": "업로드: 파일 1개 → 승인 대기 2건(갱신본 0) · 이미 관리 중 0 · 실패 0"
+  "detail": "upload: files=1 pending=2 renewal=0 known=0 failed=0"
  },
  {
   "name": "'수집 실행' → 요청 대기 → Agent poll 이 가져가 실행 → 최근 수집 결과 표시",
   "pass": true,
-  "detail": " 쇼핑몰 웹 web01Linux 서버 Agent 연결됨 /tmp/cert_targets/web01/etc/nginx/ssl 2026-11-05 13:22수집 1개 · 승인 대기 0 · 실패 0 수집 실행수정삭제"
+  "detail": " 쇼핑몰 웹 web01Linux 서버 Agent 연결됨 /tmp/cert_targets/web01/etc/nginx/ssl 2026-11-05 14:17수집 1개 · 승인 대기 0 · 실패 0 수집 실행수정삭제"
  },
  {
   "name": "같은 요청은 한 번만 실행",
