@@ -27,7 +27,7 @@
  {
   "name": "'수집 실행' → 요청 대기 → Agent poll 이 가져가 실행 → 최근 수집 결과 표시",
   "pass": true,
-  "detail": " 쇼핑몰 웹 web01Linux 서버 Agent 연결됨 /tmp/cert_targets/web01/etc/nginx/ssl 2026-11-04 20:32수집 1개 · 승인 대기 0 · 실패 0 수집 실행수정삭제"
+  "detail": " 쇼핑몰 웹 web01Linux 서버 Agent 연결됨 /tmp/cert_targets/web01/etc/nginx/ssl 2026-11-05 13:22수집 1개 · 승인 대기 0 · 실패 0 수집 실행수정삭제"
  },
  {
   "name": "같은 요청은 한 번만 실행",
