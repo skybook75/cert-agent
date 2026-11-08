@@ -28,12 +28,21 @@ async function claude(prompt) {
   return { text: j.content.map((c) => c.text || "").join(""), ms: Date.now() - t0, in: j.usage.input_tokens, out: j.usage.output_tokens };
 }
 
+// RAG=hybrid: 서버와 같은 하이브리드 검색(벡터 DB Qdrant + BM25, RRF)으로 근거를 고른다
+let HY = null;
+if (process.env.RAG === "hybrid") {
+  const qs = set.filter((x) => !C.qaGuard(x.q)).map((x) => ({ id: x.id, q: x.q, issuer: C.findCerts(x.q, certs)[0]?.issuer_cn || null }));
+  HY = JSON.parse(execFileSync("python3", ["tools/hybrid_batch.py"], { cwd: new URL("..", import.meta.url).pathname, input: JSON.stringify(qs), stdio: ["pipe", "pipe", "ignore"] }).toString());
+  const modes = new Set(Object.values(HY).map((h) => h.mode)); console.log("retrieval:", [...modes].join(","));
+}
+const byId = new Map(index.chunks.map((c) => [c.id, c]));
 const P = [], A = [], M = [];
 for (const x of set) {
   const blocked = C.qaGuard(x.q);
   if (blocked) { P.push({ id: x.id, blocked }); A.push({ id: x.id, answer: "" }); M.push({ id: x.id, blocked: true, ms: 0, in: 0, out: 0 }); continue; }
   const mentioned = C.findCerts(x.q, certs);
-  const hits = C.withRenewalContext(index, x.q, C.search(index, x.q, { k: 4, issuer: mentioned[0]?.issuer_cn }), mentioned[0], 4);
+  const base = HY ? HY[x.id].ids.map((id) => ({ chunk: byId.get(id), score: 1 })).filter((h) => h.chunk) : C.search(index, x.q, { k: 4, issuer: mentioned[0]?.issuer_cn });
+  const hits = C.withRenewalContext(index, x.q, base, mentioned[0], 4);
   const prompt = C.buildPrompt(x.q, hits, mentioned, NOW);
   const r = await claude(prompt);
   P.push({ id: x.id, provided: hits.map((h) => h.chunk.id) }); A.push({ id: x.id, answer: r.text }); M.push({ id: x.id, ms: r.ms, in: r.in, out: r.out, chars: prompt.length });
