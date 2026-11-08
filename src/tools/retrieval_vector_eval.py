@@ -29,7 +29,8 @@ def docs_of(ranked, k):
 methods = {
     "BM25 한글 2-gram": lambda q: bm.search(q, 10),
     "벡터 DB(Qdrant)": lambda q: R.vector_search(q, 10),
-    "하이브리드(BM25+벡터, RRF)": lambda q: R.rrf(bm.search(q, 10), R.vector_search(q, 10)),
+    "하이브리드 RRF": lambda q: R.rrf(bm.search(q, 10), R.vector_search(q, 10)),
+    f"하이브리드 점수 결합(α={R.ALPHA}, 운영 설정)": lambda q: R.convex(bm.search(q, 10), R.vector_search(q, 10)),
 }
 R.vector_search("warmup", 1)
 rows = []
