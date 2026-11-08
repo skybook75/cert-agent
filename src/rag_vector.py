@@ -176,6 +176,22 @@ def rrf(*ranked: list[tuple[str, float]], k=RRF_K, weights=None) -> list[tuple[s
     return sorted(s.items(), key=lambda x: -x[1])
 
 
+FUSION = os.environ.get("RAG_FUSION", "cc")          # cc: 정규화 점수 볼록 결합 / rrf
+ALPHA = float(os.environ.get("RAG_ALPHA", "0.7"))     # cc 에서 BM25 비중
+
+
+def convex(b: list[tuple[str, float]], v: list[tuple[str, float]], alpha=ALPHA) -> list[tuple[str, float]]:
+    """정규화 점수 볼록 결합(Bruch et al., 2023): α·BM25(min-max) + (1-α)·코사인(min-max). 후보에 없으면 0."""
+    def norm(lst):
+        if not lst:
+            return {}
+        hi, lo = max(x for _, x in lst), min(x for _, x in lst)
+        return {c: (x - lo) / (hi - lo) if hi > lo else 1.0 for c, x in lst}
+    nb, nv = norm(b), norm(v)
+    s = {c: alpha * nb.get(c, 0.0) + (1 - alpha) * nv.get(c, 0.0) for c in set(nb) | set(nv)}
+    return sorted(s.items(), key=lambda x: -x[1])
+
+
 def hybrid(q: str, k=4, issuer: str | None = None, depth=10) -> dict:
     t0 = time.time()
     b = bm25().search(q, depth, issuer)
@@ -186,11 +202,11 @@ def hybrid(q: str, k=4, issuer: str | None = None, depth=10) -> dict:
     except Exception as e:  # noqa: BLE001  벡터 DB 장애 시 BM25 만으로 답한다
         v, err = [], str(e)[:120]
     t2 = time.time()
-    fused = rrf(b, v, weights=[1.0, VEC_WEIGHT]) if v else b
+    fused = (convex(b, v) if FUSION == "cc" else rrf(b, v, weights=[1.0, VEC_WEIGHT])) if v else b
     br = {cid: i + 1 for i, (cid, _) in enumerate(b)}
     vr = {cid: i + 1 for i, (cid, _) in enumerate(v)}
     vs = dict(v)
-    hits = [{"id": cid, "rrf": round(sc, 5), "bm25_rank": br.get(cid), "vec_rank": vr.get(cid),
+    hits = [{"id": cid, "score": round(sc, 4), "rrf": round(sc, 5), "bm25_rank": br.get(cid), "vec_rank": vr.get(cid),
              "cosine": round(vs[cid], 3) if cid in vs else None} for cid, sc in fused[:k]]
     return {"mode": "hybrid" if v else "bm25", "hits": hits, "error": err,
             "ms": {"bm25": round((t1 - t0) * 1000, 1), "vector": round((t2 - t1) * 1000, 1)}}

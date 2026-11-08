@@ -14,7 +14,16 @@ V = {x["id"]: R.vector_search(x["q"], 10) for x in ev}
 q11 = next(x for x in json.loads((BASE / "tests/qa_eval_set.json").read_text(encoding="utf-8")) if x["id"] == "Q11")
 b11, v11 = bm.search(q11["q"], 10), R.vector_search(q11["q"], 10)
 print("Q11 bm25:", [c for c, _ in b11[:6]], "vec:", [c for c, _ in v11[:6]])
-for w in (0.0, 0.3, 0.5, 0.7, 1.0):
+def show(name, fn):
+    t1 = t4 = 0; mrr = 0
+    for x in ev:
+        d = [doc[c] for c, _ in fn(B[x["id"]], V[x["id"]])][:4]
+        t1 += d[0] in x["docs"]; t4 += bool(set(d) & set(x["docs"]))
+        r = next((i for i, v in enumerate(d) if v in x["docs"]), -1); mrr += 1 / (r + 1) if r >= 0 else 0
+    print(f"{name}: top1 {t1/len(ev)*100:.0f}% top4 {t4/len(ev)*100:.0f}% mrr {mrr/len(ev):.3f} | Q11 top4 {[c for c, _ in fn(b11, v11)][:4]}")
+for a in (0.5, 0.6, 0.7, 0.8, 0.9):
+    show(f"cc a={a}", lambda b, v, a=a: R.convex(b, v, a))
+for w in (0.0, 0.3, 1.0):
     t1 = t4 = 0; mrr = 0
     for x in ev:
         f = R.rrf(B[x["id"]], V[x["id"]], weights=[1, w]) if w else B[x["id"]]
