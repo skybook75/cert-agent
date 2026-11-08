@@ -341,6 +341,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._create_user()
             if parts[:2] == ["api", "users"] and len(parts) == 3 and method == "PATCH":
                 return self._update_user(parts[2])
+            if method == "POST" and path == "/api/qa/retrieve":     # RAG 검색: Qdrant 벡터 + BM25 하이브리드(RRF)
+                self._require(method)
+                b = self._body()
+                q = str(b.get("q", ""))[:300]
+                issuer = str(b.get("issuer") or "")[:200] or None
+                import rag_vector
+                return self._json(rag_vector.hybrid(q, k=max(1, min(int(b.get("k") or 4), 8)), issuer=issuer))
             if method == "POST" and path == "/api/llm":
                 self._require(method)
                 prompt = str(self._body().get("prompt", ""))[:20000]
@@ -1024,6 +1031,9 @@ def main(argv=None):
     a = ap.parse_args(argv)
     a.db = agents.resolve_db(a.db)
     STORE = agents.Store(a.db)
+    if os.environ.get("CERT_VECTOR", "1") != "0":          # 벡터 DB 색인 확인·임베딩 모델 로드(백그라운드)
+        import rag_vector
+        threading.Thread(target=rag_vector.warmup, daemon=True).start()
     VAULT = vault_mod.Vault(a.vault_key)
     SCAN_ROOT = str(Path(a.scan).resolve()) if a.scan else None
     DEPLOY_ROOT = Path(a.deploy).resolve()

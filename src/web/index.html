@@ -1713,7 +1713,14 @@ async function ask() {
   const blocked = C.qaGuard(q);
   if (blocked) { out.textContent = blocked; const m = document.createElement("span"); m.className = "meta"; m.textContent = "입력 가드레일에서 차단 · Claude 호출 안 함"; out.appendChild(m); return; }
   const mentioned = C.findCerts(q, active());     // 담당자는 본인 담당 인증서만 근거로 사용
-  const hits = C.withRenewalContext(S.index, q, C.search(S.index, q, { k: 4, issuer: mentioned[0]?.issuer_cn }), mentioned[0], 4);
+  let found = null, rmode = "BM25(브라우저)";
+  try {                                             // 서버 RAG 검색: 벡터 DB(Qdrant) + BM25 하이브리드
+    const r = await api("POST", "/api/qa/retrieve", { q, issuer: mentioned[0]?.issuer_cn || null, k: 4 });
+    const byId = new Map(S.index.chunks.map(c => [c.id, c]));
+    const hs = (r.hits || []).map(h => ({ chunk: byId.get(h.id), score: h.rrf, vec: h.vec_rank, bm: h.bm25_rank, cos: h.cosine })).filter(h => h.chunk);
+    if (hs.length) { found = hs; rmode = r.mode === "hybrid" ? "하이브리드(벡터 DB + BM25)" : "BM25(서버)"; }
+  } catch {}
+  const hits = C.withRenewalContext(S.index, q, found || C.search(S.index, q, { k: 4, issuer: mentioned[0]?.issuer_cn }), mentioned[0], 4);
   let text, engine = "검색형";
   if (S.llm) {
     try { text = await llm(C.buildPrompt(q, hits, mentioned, Date.now()), (t) => (out.textContent = t)); engine = "Claude"; }
@@ -1736,7 +1743,7 @@ async function ask() {
   // 검증 → (부적합이면) 피드백 반영 재작성 → 재검증 : Self-Correction 루프 (최대 2회)
   const log = [`Plan: 질문 분류 → 인증서 인식 → 근거 검색 → 답변 생성 → 검증 → (부적합 시) 피드백 반영 재작성`,
     `인증서 인식: ${mentioned.map((c) => c.subject_cn).join(", ") || "없음"}`,
-    `근거 검색(BM25 한글 2-gram): ${hits.map((h) => h.chunk.id).join(", ")}`, `답변 생성: Claude · 인용 ${rules.cited.length}개`];
+    `근거 검색(${rmode}): ${hits.map((h) => h.chunk.id + (h.vec ? ` 벡터${h.vec}위` : "") + (h.bm ? ` BM25 ${h.bm}위` : "")).join(", ")}`, `답변 생성: Claude · 인용 ${rules.cited.length}개`];
   let cur = { text, rules, out }, verdict = null;
   for (let round = 0; round <= 2; round++) {
     const wait = document.createElement("div"); wait.className = "verify v-참고"; wait.textContent = round ? "검증 피드백을 반영한 답변을 다시 검증하고 있습니다…" : "답변 검증 AI가 정확도·품질을 확인하고 있습니다…";
