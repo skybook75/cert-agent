@@ -325,6 +325,26 @@ def _restart_soon():
         threading.Thread(target=go, daemon=True).start()
 
 
+def _edit_brief(edits):
+    """수정안의 실제 변경 내용(바뀐 부분만)을 기계적으로 요약 — LLM 요약과 실제 수정이 어긋나지 않게 화면·로그에 함께 표시."""
+    B = " <>\"'`(){}[],;:"
+    out = []
+    for e in edits:
+        a, b = e.get("old", ""), e.get("new", "")
+        i = 0
+        while i < min(len(a), len(b)) and a[i] == b[i]:
+            i += 1
+        j = 0
+        while j < min(len(a), len(b)) - i and a[-1 - j] == b[-1 - j]:
+            j += 1
+        while i > 0 and a[i - 1] not in B:                       # 단어 경계까지 넓혀 읽기 쉽게
+            i -= 1
+        while j > 0 and a[len(a) - j] not in B:
+            j -= 1
+        out.append(f"'{a[i:len(a) - j][:40]}' → '{b[i:len(b) - j][:40]}'")
+    return f"{len(edits)}곳: " + ", ".join(out)
+
+
 def _mlog(msg):                                    # 유지보수 AI 실행 로그(journald, 영문)
     print(f"maint: {msg}", flush=True)
 
@@ -362,7 +382,8 @@ def improve(store, request: str, actor: str) -> dict:
         prompt = ("너는 인증서 관리 플랫폼(파이썬 표준 http.server + SQLite, 바닐라 JS 단일 페이지)의 유지보수 Agent다.\n"
                   f"요청: {request}\n분석: {pick.get('analysis', '')}\n"
                   + (f"이전 수정안이 테스트에서 실패했다. 실패 내용: {feedback}\n반드시 고쳐서 다시 제시하라.\n" if feedback else "")
-                  + "규칙: 최소한으로 수정. 보안 검사(권한·CSRF·감사 로그)를 약하게 만들지 말 것. 비밀번호·키를 코드에 넣지 말 것.\n"
+                  + "규칙: 요청한 것만 최소한으로 수정(요청에 없는 다른 문구·기능은 바꾸지 말 것). 보안 검사(권한·CSRF·감사 로그)를 약하게 만들지 말 것. 비밀번호·키를 코드에 넣지 말 것.\n"
+                  "summary 에는 edits 를 하나도 빠짐없이, 그 개수와 같게 설명할 것.\n"
                   "각 수정은 원문에서 정확히 한 번 나오는 old 문자열을 new 로 바꾸는 방식. old 는 공백까지 원문 그대로 복사.\n"
                   '응답은 JSON만: {"summary": "무엇을 왜 바꿨는지 2~3문장", "edits": [{"file": "...", "old": "...", "new": "..."}]}\n\n'
                   + "\n\n".join(f"=== {f} ===\n{t}" for f, t in src.items()))
@@ -409,7 +430,7 @@ def improve(store, request: str, actor: str) -> dict:
                 diffs.append("".join(difflib.unified_diff((BASE / rel).read_text(encoding="utf-8").splitlines(True),
                                                           (work / rel).read_text(encoding="utf-8").splitlines(True), f"a/{rel}", f"b/{rel}", n=2))[:6000])
                 shutil.copy2(work / rel, BASE / rel)
-            rep.update(status="반영", summary=plan.get("summary", ""), files=changed, diff="\n".join(diffs), backup=str(bdir), attempts=attempt)
+            rep.update(status="반영", summary=plan.get("summary", "") + "\n실제 변경 " + _edit_brief(plan["edits"]), files=changed, diff="\n".join(diffs), backup=str(bdir), attempts=attempt)
             step("반영", f"{', '.join(changed)} 교체 · 백업 {bdir.name} · 서버 재시작")
             _mlog(f"apply: {','.join(changed)} backup={bdir.name} -> restarting service")
             store.set("maint", rid, rep)
