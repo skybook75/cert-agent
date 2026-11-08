@@ -163,11 +163,16 @@ def bm25() -> BM25:
     return _bm25
 
 
-def rrf(*ranked: list[tuple[str, float]], k=RRF_K) -> list[tuple[str, float]]:
+VEC_WEIGHT = float(os.environ.get("RAG_VEC_WEIGHT", "1.0"))
+
+
+def rrf(*ranked: list[tuple[str, float]], k=RRF_K, weights=None) -> list[tuple[str, float]]:
+    """가중 RRF: 점수 = Σ w / (k + 순위)"""
     s: dict[str, float] = {}
-    for lst in ranked:
+    weights = weights or [1.0] * len(ranked)
+    for w, lst in zip(weights, ranked):
         for r, (cid, _) in enumerate(lst):
-            s[cid] = s.get(cid, 0.0) + 1.0 / (k + r + 1)
+            s[cid] = s.get(cid, 0.0) + w / (k + r + 1)
     return sorted(s.items(), key=lambda x: -x[1])
 
 
@@ -181,7 +186,7 @@ def hybrid(q: str, k=4, issuer: str | None = None, depth=10) -> dict:
     except Exception as e:  # noqa: BLE001  벡터 DB 장애 시 BM25 만으로 답한다
         v, err = [], str(e)[:120]
     t2 = time.time()
-    fused = rrf(b, v) if v else b
+    fused = rrf(b, v, weights=[1.0, VEC_WEIGHT]) if v else b
     br = {cid: i + 1 for i, (cid, _) in enumerate(b)}
     vr = {cid: i + 1 for i, (cid, _) in enumerate(v)}
     vs = dict(v)
