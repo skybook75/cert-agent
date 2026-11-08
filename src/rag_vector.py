@@ -177,7 +177,7 @@ def rrf(*ranked: list[tuple[str, float]], k=RRF_K, weights=None) -> list[tuple[s
 
 
 FUSION = os.environ.get("RAG_FUSION", "cc")          # cc: 정규화 점수 볼록 결합 / rrf
-ALPHA = float(os.environ.get("RAG_ALPHA", "0.7"))     # cc 에서 BM25 비중
+ALPHA = float(os.environ.get("RAG_ALPHA", "0.6"))     # cc 에서 BM25 비중
 
 
 def convex(b: list[tuple[str, float]], v: list[tuple[str, float]], alpha=ALPHA) -> list[tuple[str, float]]:
