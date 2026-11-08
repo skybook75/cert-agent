@@ -16,9 +16,11 @@ Description=Cert agent poll every minute
 [Timer]
 OnBootSec=1min
 OnUnitActiveSec=1min
+AccuracySec=1s
 [Install]
 WantedBy=timers.target
 U
 systemctl daemon-reload
 systemctl enable --now cert-agent-poll.timer
+systemctl restart cert-agent-poll.timer      # 바뀐 주기(AccuracySec=1s: 실제 1분 간격) 즉시 적용
 echo "agent updated · poll timer: $(systemctl is-active cert-agent-poll.timer)"

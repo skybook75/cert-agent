@@ -125,6 +125,7 @@ Description=Cert agent poll every minute
 [Timer]
 OnBootSec=1min
 OnUnitActiveSec=1min
+AccuracySec=1s
 [Install]
 WantedBy=timers.target
 U
