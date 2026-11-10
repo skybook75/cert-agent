@@ -368,7 +368,7 @@ def improve(store, request: str, actor: str) -> dict:
                            f"요청: {request}\n파일 목록(개요): {json.dumps(fm, ensure_ascii=False)[:12000]}\n"
                            '응답은 JSON만: {"analysis": "원인/의도 분석 2~3문장", "files": ["web/index.html"]}', 800))
     if not pick:
-        rep.update(status="보류", summary="Claude API 키가 없어 코드 수정은 할 수 없습니다. 자가 진단의 규칙형 조치(알림 재실행·재발송 등)는 동작합니다.")
+        rep.update(status="보류", summary="생성형 AI API 키가 없어 코드 수정은 할 수 없습니다. 자가 진단의 규칙형 조치(알림 재실행·재발송 등)는 동작합니다.")
         step("LLM 확인", "ANTHROPIC_API_KEY 미설정 → 코드 수정 보류", False)
         _mlog("llm: no API key -> code change skipped")
         store.set("maint", rid, rep)
@@ -490,7 +490,7 @@ def chat(store, message: str, actor: str) -> dict:
                   f"최근 자가 진단: {json.dumps([{k: f[k] for k in ('severity', 'title')} for f in diagnose(store)[:6]], ensure_ascii=False)}\n"
                   f"성능: {json.dumps(perf_summary()[:5], ensure_ascii=False)}\n질문: {m}", 900)
         reply = ans or ("저는 '진단해줘', '알림 다시 보내줘', '○○ 기능을 바꿔줘/버그 고쳐줘', '되돌려줘' 같은 요청을 처리합니다. "
-                        "자유 질의응답과 코드 수정은 Claude API 키가 설정되면 동작합니다.")
+                        "자유 질의응답과 코드 수정은 생성형 AI API 키가 설정되면 동작합니다.")
     hist["messages"].append({"role": "agent", "text": reply, "at": now_iso(), **extra})
     store.set("maint", "chat_log", hist)
     return {"reply": reply, **extra}

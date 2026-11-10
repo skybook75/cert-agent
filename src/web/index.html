@@ -290,7 +290,7 @@ async function init() {
     S.health = await r.json(); S.mode = "server"; S.llm = S.health.llm;
   } catch { S.mode = "artifact"; }
   if (S.mode === "server") {
-    $("conn").classList.add("ok"); $("conn-text").textContent = `서버 · ${S.health.db || "DB"} · ${S.llm ? "Claude 연결" : "Claude 키 없음(검색형)"}`;
+    $("conn").classList.add("ok"); $("conn-text").textContent = `서버 · ${S.health.db || "DB"} · ${S.llm ? "생성형 AI 연결" : "생성형 AI 키 없음(검색형)"}`;
     if (S.health.setup_needed) return showAuth("setup");
     try { const me = await api("GET", "api/me"); S.user = me.user; S.csrf = me.csrf; } catch { return showAuth("login"); }
     if (S.user.must_change) return showAuth("change");
@@ -327,8 +327,8 @@ async function useSource(src, reload) {
   try { localStorage.setItem("demoSource", S.source); } catch {}
   lockVault();
   $("conn").classList.add("ok");
-  $("conn-text").textContent = S.source === "shared" ? `웹 시연 · 공유 DB · ${S.sample ? "Claude 연결" : "검색형 답변"}${S.canWrite ? "" : " · 읽기 전용"}`
-    : `웹 시연 · 시연 데이터(이 브라우저에서만 바뀜) · ${S.sample ? "Claude 연결" : "검색형 답변"}`;
+  $("conn-text").textContent = S.source === "shared" ? `웹 시연 · 공유 DB · ${S.sample ? "생성형 AI 연결" : "검색형 답변"}${S.canWrite ? "" : " · 읽기 전용"}`
+    : `웹 시연 · 시연 데이터(이 브라우저에서만 바뀜) · ${S.sample ? "생성형 AI 연결" : "검색형 답변"}`;
   if (reload) { renderWho(); await load(); toast(S.source === "shared" ? "공유 DB로 전환했습니다" : "시연 데이터를 처음 상태로 불러왔습니다"); }
 }
 
@@ -413,7 +413,7 @@ function select(tab) {
   document.querySelectorAll("section[role=tabpanel]").forEach((p) => (p.hidden = p.id !== "p-" + tab));
   if (tab === "ops") loadOps();
   if (tab === "targets") loadTargets();
-  if (tab === "qa") $("qa-engine").textContent = `발급기관별 갱신 가이드 ${S.guides.length}종과 등록 인증서 정보를 근거로 답합니다. 답변 엔진: ${S.llm ? "Claude" : "검색형(근거 문단 제시)"}`;
+  if (tab === "qa") $("qa-engine").textContent = `발급기관별 갱신 가이드 ${S.guides.length}종과 등록 인증서 정보를 근거로 답합니다. 답변 엔진: ${S.llm ? "생성형 AI" : "검색형(근거 문단 제시)"}`;
 }
 async function startApp() {
   $("auth").hidden = true; $("app").hidden = false; renderWho(); buildTabs();
@@ -1372,8 +1372,8 @@ function renderOps() {
       ${o.runs.length > 1 ? `<details><summary class="note">실행 이력 ${o.runs.length}건</summary>${tbl(["시각", "목표", "단계", "결과"], o.runs.map((r) => `<tr><td class="mono nw">${dt(r.started_at)}</td><td>${esc(r.goal)}</td><td class="num">${r.steps.length}</td><td>${pill(r.status, r.status === "정상" ? "ok" : "warn")} <span class="note">${esc(r.result.slice(0, 90))}</span></td></tr>`), "", 620)}</details>` : ""}
     </div>
     <div class="cols2">
-      <div class="card"><h2>유지보수·개선 Agent <span class="note">${o.llm ? `Claude 연결${o.llm_model ? ` (${esc(o.llm_model)})` : ""} · 코드 수정 가능` : "규칙형(Claude 키 설정 시 코드 수정)"}</span></h2>
-        ${o.llm_error ? `<p class="note" style="color:var(--warn)">최근 Claude 호출 오류: ${esc(o.llm_error.slice(0, 200))} — 규칙형으로 대체 동작</p>` : ""}
+      <div class="card"><h2>유지보수·개선 Agent <span class="note">${o.llm ? "생성형 AI 연결 · 코드 수정 가능" : "규칙형(생성형 AI 키 설정 시 코드 수정)"}</span></h2>
+        ${o.llm_error ? `<p class="note" style="color:var(--warn)">최근 생성형 AI 호출 오류: ${esc(o.llm_error.slice(0, 200))} — 규칙형으로 대체 동작</p>` : ""}
         <p class="note">버그 수정·기능 개선을 말로 요청하면 원인 분석 → 수정안 → <b>임시 사본에서 자동 테스트(컴파일·문법·서버 기동·화면 응답)</b> → 통과 시에만 반영하고 리포트를 남깁니다. 실패하면 오류를 근거로 최대 2번 다시 고치고(Self-Correction), 그래도 실패하면 반영하지 않습니다.</p>
         <div class="examples" style="margin-bottom:8px">${MAINT_EX.map((g) => `<button type="button" data-mx="${esc(g)}">${esc(g)}</button>`).join("")}</div>
         <div class="chat" id="mchat" style="max-height:340px">${(o.chat || []).map((m) => `<div class="msg ${m.role === "user" ? "me" : "bot"}">${esc(m.text)}${m.report ? `<span class="meta">리포트 ${esc(m.report)} · ${esc(m.status || "")}</span>` : ""}</div>`).join("") || `<p class="note">예) “수집 승인 화면에서 담당자 입력칸을 기본으로 내 이름으로 채워줘”, “진단해줘”</p>`}</div>
@@ -1711,7 +1711,7 @@ async function ask() {
   $("qa-input").value = ""; bubble("me", q);
   const out = bubble("bot", "답변 준비 중…");
   const blocked = C.qaGuard(q);
-  if (blocked) { out.textContent = blocked; const m = document.createElement("span"); m.className = "meta"; m.textContent = "입력 가드레일에서 차단 · Claude 호출 안 함"; out.appendChild(m); return; }
+  if (blocked) { out.textContent = blocked; const m = document.createElement("span"); m.className = "meta"; m.textContent = "입력 가드레일에서 차단 · 생성형 AI 호출 안 함"; out.appendChild(m); return; }
   const mentioned = C.findCerts(q, active());     // 담당자는 본인 담당 인증서만 근거로 사용
   let found = null, rmode = "BM25(브라우저)";
   try {                                             // 서버 RAG 검색: 벡터 DB(Qdrant) + BM25 하이브리드
@@ -1723,27 +1723,27 @@ async function ask() {
   const hits = C.withRenewalContext(S.index, q, found || C.search(S.index, q, { k: 4, issuer: mentioned[0]?.issuer_cn }), mentioned[0], 4);
   let text, engine = "검색형";
   if (S.llm) {
-    try { text = await llm(C.buildPrompt(q, hits, mentioned, Date.now()), (t) => (out.textContent = t)); engine = "Claude"; }
+    try { text = await llm(C.buildPrompt(q, hits, mentioned, Date.now()), (t) => (out.textContent = t)); engine = "생성형 AI"; }
     catch (e) { text = null; out.dataset.err = e.code || e.message; }
   }
   if (!text) text = C.extractiveAnswer(q, hits, mentioned, Date.now());
   out.innerHTML = esc(text).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, '<code class="mono">$1</code>');
   const meta = document.createElement("span"); meta.className = "meta";
   const srcs = [...new Map(hits.map((h) => [h.chunk.doc, h.chunk])).values()];
-  meta.innerHTML = `${engine} 답변${out.dataset.err ? ` (Claude 호출 실패: ${esc(out.dataset.err)} → 검색형)` : ""} · ` +
+  meta.innerHTML = `${engine} 답변${out.dataset.err ? ` (생성형 AI 호출 실패: ${esc(out.dataset.err)} → 검색형)` : ""} · ` +
     `참고: ${srcs.map((c) => `[${esc(c.doc)}] ${esc(c.title)}${c.sources[0]?.startsWith("http") ? ` <a href="${esc(c.sources[0])}" target="_blank" rel="noopener">출처</a>` : c.doc.startsWith("U") ? " (업로드)" : ""}`).join(" · ") || "없음"}`;
   out.appendChild(meta);
   // 답변 검증 AI
   const rules = C.verifyRules(text, hits, mentioned, Date.now());
-  if (engine !== "Claude") {   // 검색형: AI가 만든 답이 아니라 원문 인용이므로 검증 AI 카드 대신 안내 한 줄
+  if (engine !== "생성형 AI") {   // 검색형: AI가 만든 답이 아니라 원문 인용이므로 검증 AI 카드 대신 안내 한 줄
     const n = document.createElement("p"); n.className = "note"; n.style.margin = "-2px 0 8px";
-    n.textContent = "검색형 답변(가이드 원문 인용)입니다. Claude가 연결되면 답변마다 '답변 검증 AI'의 정확도·품질 평가가 이 자리에 붙습니다.";
+    n.textContent = "검색형 답변(가이드 원문 인용)입니다. 생성형 AI가 연결되면 답변마다 '답변 검증 AI'의 정확도·품질 평가가 이 자리에 붙습니다.";
     $("chat").appendChild(n); $("chat").scrollTop = 1e9; return;
   }
   // 검증 → (부적합이면) 피드백 반영 재작성 → 재검증 : Self-Correction 루프 (최대 2회)
   const log = [`Plan: 질문 분류 → 인증서 인식 → 근거 검색 → 답변 생성 → 검증 → (부적합 시) 피드백 반영 재작성`,
     `인증서 인식: ${mentioned.map((c) => c.subject_cn).join(", ") || "없음"}`,
-    `근거 검색(${rmode}): ${hits.map((h) => h.chunk.id + (h.vec ? ` 벡터${h.vec}위` : "") + (h.bm ? ` BM25 ${h.bm}위` : "")).join(", ")}`, `답변 생성: Claude · 인용 ${rules.cited.length}개`];
+    `근거 검색(${rmode}): ${hits.map((h) => h.chunk.id + (h.vec ? ` 벡터${h.vec}위` : "") + (h.bm ? ` BM25 ${h.bm}위` : "")).join(", ")}`, `답변 생성: 생성형 AI · 인용 ${rules.cited.length}개`];
   let cur = { text, rules, out }, verdict = null;
   for (let round = 0; round <= 2; round++) {
     const wait = document.createElement("div"); wait.className = "verify v-참고"; wait.textContent = round ? "검증 피드백을 반영한 답변을 다시 검증하고 있습니다…" : "답변 검증 AI가 정확도·품질을 확인하고 있습니다…";
@@ -1761,7 +1761,7 @@ async function ask() {
     let t2 = null;
     try { t2 = await llm(C.buildRevisePrompt(q, hits, mentioned, cur.text, verdict, cur.rules, Date.now()), (t) => (o2.textContent = t)); } catch (e) { o2.textContent = `재작성 실패: ${e.message}`; break; }
     o2.innerHTML = esc(t2).replace(/`([^`]+)`/g, '<code class="mono">$1</code>');
-    const m2 = document.createElement("span"); m2.className = "meta"; m2.textContent = `Claude 답변 · 검증 피드백 반영 재작성 ${round + 1}회`; o2.appendChild(m2);
+    const m2 = document.createElement("span"); m2.className = "meta"; m2.textContent = `생성형 AI 답변 · 검증 피드백 반영 재작성 ${round + 1}회`; o2.appendChild(m2);
     cur = { text: t2, rules: C.verifyRules(t2, hits, mentioned, Date.now()), out: o2 };
   }
   const lg = document.createElement("details"); lg.className = "agentlog";
