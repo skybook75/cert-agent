@@ -231,7 +231,9 @@ const SCENES = {
     await O.p.waitForFunction(() => !/답변 준비 중|검증 중/.test(document.getElementById("chat").textContent) && !document.getElementById("qa-send").disabled, null, { timeout: 240000 }).catch(() => {});
     await sleep(800); mark(O, "wait_end");
     const last = O.p.locator("#chat > *").last(); await moveTo(O, last);
-    for (let i = 0; i < 5; i++) { await scrollBy(O, 160, 4); await sleep(1200); }
+    for (let i = 0; i < 3; i++) { await scrollBy(O, 160, 4); await sleep(1100); }
+    const sm = O.p.locator("#chat summary", { hasText: "추론 로그" }).last();   // 하이브리드 검색 순위·검증 단계가 담긴 추론 로그를 펼쳐 보여 준다
+    if (await sm.count()) { await hclick(O, sm); await sleep(1200); await moveTo(O, sm); await scrollBy(O, 220, 4); await sleep(4500); }
     log("qa:", ((await O.p.textContent("#chat")) || "").replace(/\s+/g, " ").slice(-500));
     mark(O, "end"); await close(O);
   },
