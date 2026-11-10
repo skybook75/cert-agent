@@ -1350,7 +1350,7 @@ function stepStates(run) {
   for (const x of run?.steps || []) { const v = !x.ok ? "확인" : x.needs_human ? "승인필요" : "정상"; if (st[x.agent] !== "확인") st[x.agent] = st[x.agent] === "승인필요" && v === "정상" ? "승인필요" : v; }
   return st;
 }
-const traceHtml = (run) => `<ol class="trace">${(run.steps || []).map((x) => `<li class="${!x.ok ? "bad" : x.needs_human ? "human" : "ok"}"><b>${esc((S.ops.agents.find((a) => a.id === x.agent) || { name: "오케스트레이터" }).name)}</b> · ${esc(x.label)} <span class="note">${x.ms}ms</span><br>${esc(x.summary)}</li>`).join("")}</ol>`;
+const traceHtml = (run) => `<ol class="trace">${(run.steps || []).map((x) => `<li class="${!x.ok ? "bad" : x.needs_human ? "human" : "ok"}"><b>${esc((S.ops.agents.find((a) => a.id === x.agent) || { name: "오케스트레이터" }).name)}</b> · ${esc(x.label)} <span class="note">${x.via === "mcp" ? "MCP tools/call · " : x.via && x.via !== "direct" ? esc(x.via) + " · " : ""}${x.ms}ms</span><br>${esc(x.summary)}</li>`).join("")}</ol>`;
 function renderOps() {
   const P = $("p-ops");
   if (!P) return;

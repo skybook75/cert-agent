@@ -1,6 +1,8 @@
 """AI 운영: 오케스트레이터(Supervisor) + 유지보수·개선 Agent + 자가 진단
 
   오케스트레이터  목표(자연어) → 계획(정해진 점검 절차 = 규칙 템플릿, LLM 미사용) → 각 Agent 도구 실행 → 결과 검증 → 보고.
+                  Agent 호출은 MCP(Model Context Protocol)로 한다: mcp_server.py --profile internal 을 자식 프로세스로 띄워
+                  initialize → tools/list → tools/call(JSON-RPC 2.0 · stdio). MCP 가 실패하면 같은 함수를 직접 호출해 점검은 멈추지 않는다.
                   배포처럼 되돌리기 어려운 단계는 실행하지 않고 '사람 승인 대기'로 남긴다(Human-in-the-loop).
   유지보수 Agent  ① 자가 진단: 서버·화면 오류, 수집·배포 실패, 느린 API, 데이터 품질, Agent 미접속을 찾아 버그 리포트·개선 제안
                   ② 대화형 개선: 요청 → 원인 분석 → 수정안(파일 교체 블록) → 임시 사본에서 컴파일·문법·기동 테스트 → 통과 시에만 반영
@@ -593,27 +595,95 @@ def _run_tool(store, tool: str, ctx: dict, actor: str) -> dict:
     return {"ok": False, "summary": "알 수 없는 도구"}
 
 
+class MCPClient:
+    """오케스트레이터용 MCP 클라이언트 — 내부 Agent 도구 서버(mcp_server.py --profile internal)에 stdio 로 붙는다."""
+
+    def __init__(self, store):
+        env = dict(os.environ, CERT_DB=store.path, PYTHONUNBUFFERED="1")      # DB 연결 정보는 명령줄이 아니라 환경변수로 전달
+        self.p = subprocess.Popen([sys.executable, str(BASE / "mcp_server.py"), "--profile", "internal"], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", env=env)
+        self.n = 0
+        info = self.rpc("initialize", {"protocolVersion": "2025-06-18", "clientInfo": {"name": "cert-orchestrator", "version": "1.0"}})
+        self.p.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n"); self.p.stdin.flush()
+        self.server = info["serverInfo"]["name"]
+        self.tools = [t["name"] for t in self.rpc("tools/list", {})["tools"]]
+        _olog(f"mcp: initialize server={self.server} tools={len(self.tools)} transport=stdio jsonrpc=2.0")
+
+    def rpc(self, method, params):
+        self.n += 1
+        self.p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params}, ensure_ascii=False) + "\n")
+        self.p.stdin.flush()
+        line = self.p.stdout.readline()
+        if not line:
+            raise RuntimeError("MCP server closed")
+        msg = json.loads(line)
+        if "error" in msg:
+            raise RuntimeError(msg["error"].get("message", "MCP error"))
+        return msg["result"]
+
+    def call(self, tool, actor):
+        res = self.rpc("tools/call", {"name": tool.replace(".", "_"), "arguments": {"actor": actor}})
+        return json.loads(res["content"][0]["text"])
+
+    def close(self):
+        try:
+            self.p.stdin.close(); self.p.wait(timeout=5)
+        except Exception:  # noqa: BLE001
+            self.p.kill()
+
+
+def _olog(msg):                                    # 오케스트레이터 실행 로그(journald, 영문)
+    print(f"orch: {msg}", flush=True)
+
+
 def orchestrate(store, goal: str, actor: str = "오케스트레이터") -> dict:
     t0 = time.time()
     steps, why = _plan(goal)
     run = {"goal": goal[:300], "actor": actor, "started_at": now_iso(), "plan": steps, "plan_note": why, "steps": []}
     ctx = {}
+    mcp = None
+    if os.environ.get("ORCH_TRANSPORT", "mcp") == "mcp":
+        try:
+            mcp = MCPClient(store)
+            run["transport"] = f"MCP ({mcp.server}, 도구 {len(mcp.tools)}종, JSON-RPC 2.0 · stdio)"
+        except Exception as e:  # noqa: BLE001
+            run["transport"] = f"직접 호출(MCP 연결 실패: {str(e)[:80]})"
+            _olog(f"mcp: unavailable ({str(e)[:120]}) -> direct call")
+    else:
+        run["transport"] = "직접 호출"
+    run["plan_note"] = why + (" · MCP 도구 호출" if mcp else " · 직접 호출")
+    _olog(f"plan: goal_chars={len(goal)} steps={len(steps)} -> {' > '.join(steps)}")
     for tool in steps:
         st = time.time()
+        via = "mcp" if mcp else "direct"
         try:
-            r = _run_tool(store, tool, ctx, actor)
+            if mcp:
+                try:
+                    r = mcp.call(tool, actor)
+                    ctx.update(r.pop("ctx", {}) or {})
+                except Exception as e:  # noqa: BLE001  MCP 단계 실패 → 같은 기능을 직접 호출(점검 중단 방지)
+                    _olog(f"mcp: tools/call {tool.replace('.', '_')} failed ({str(e)[:80]}) -> direct")
+                    via = "direct(fallback)"
+                    r = _run_tool(store, tool, ctx, actor)
+            else:
+                r = _run_tool(store, tool, ctx, actor)
         except Exception as e:  # noqa: BLE001
             r = {"ok": False, "summary": f"실행 오류: {e}"[:300]}
             record_error(store, "server", f"orchestrate:{tool}", str(e), traceback.format_exc())
+        ms = round((time.time() - st) * 1000)
+        _olog(f"{'mcp tools/call' if via == 'mcp' else via} {tool.replace('.', '_')} -> {'ok' if r.get('ok') else 'check'} {ms}ms")
         run["steps"].append({"tool": tool, "agent": TOOLS[tool][0], "label": TOOLS[tool][1], "ok": r.get("ok", False),
                              "needs_human": r.get("needs_human", False), "skipped": r.get("skipped", False),
-                             "summary": r.get("summary", ""), "ms": round((time.time() - st) * 1000)})
+                             "summary": r.get("summary", ""), "ms": ms, "via": via})
+    if mcp:
+        mcp.close()
     bad = [s for s in run["steps"] if not s["ok"]]
     human = [s for s in run["steps"] if s["needs_human"]]
     run.update(finished_at=now_iso(), ms=round((time.time() - t0) * 1000), status="주의" if bad else "정상",
                result=("확인 필요: " + "; ".join(f"{s['label']} — {s['summary'][:60]}" for s in bad[:3]) if bad else "모든 단계 정상")
                + (f" · 사람 승인 필요 {len(human)}건" if human else ""))
     rid = "or_" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    _olog(f"report: status={'ok' if not bad else 'check'} steps={len(steps)} human={len(human)} {run['ms']}ms")
     store.set("orch_runs", rid, run)
     store.set("audit", "a_orch_" + rid, {"at": now_iso(), "actor": actor, "action": "오케스트레이션 실행", "detail": f"{goal[:80]} → {run['status']} ({len(steps)}단계)"})
     return dict(run, id=rid)

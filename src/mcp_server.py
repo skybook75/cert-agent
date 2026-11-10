@@ -4,6 +4,12 @@
 외부 AI Agent(Claude Desktop·Claude Code·사내 Agent)가 플랫폼 기능을 '도구'로 호출하게 한다.
   등록 예 (Claude Code):  claude mcp add cert-platform -- python3 /opt/cert-agent-src/src/mcp_server.py --db /var/lib/cert-platform/platform.db
 읽기 도구는 자유롭게, 상태를 바꾸는 도구(run_orchestration)는 알림 생성까지만 하며 배포·삭제 도구는 제공하지 않는다.
+
+프로필
+  external(기본)  외부 AI 용 도구 5종 (위 설명)
+  internal        오케스트레이터 전용: 각 Agent 기능 9종(collector_status · verifier_pending · notifier_run · notifier_send ·
+                  deployer_plan · deployer_status · qa_brief · maint_diagnose · report_summary).
+                  오케스트레이터가 이 서버를 자식 프로세스로 띄워 MCP(tools/call)로 Agent 를 호출한다. 배포 실행 도구는 여기에도 없다.
 """
 from __future__ import annotations
 
@@ -26,6 +32,19 @@ TOOLS = [
     {"name": "diagnose", "description": "유지보수 Agent 자가 진단(버그·운영·데이터 품질)", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "run_orchestration", "description": "오케스트레이터에 목표를 주고 실행(알림 생성·발송까지, 배포는 제안만)", "inputSchema": {"type": "object", "properties": {"goal": {"type": "string"}}, "required": ["goal"]}},
 ]
+
+
+INTERNAL_TOOLS = [{"name": k.replace(".", "_"), "description": f"[{v[0]}] {v[1]}",
+                   "inputSchema": {"type": "object", "properties": {"actor": {"type": "string"}}}} for k, v in ops_agents.TOOLS.items()]
+
+
+def call_internal(store, name, args):
+    tool = name.replace("_", ".", 1)
+    if tool not in ops_agents.TOOLS:
+        raise ValueError(f"unknown tool {name}")
+    ctx = {}
+    r = ops_agents._run_tool(store, tool, ctx, str(args.get("actor") or "오케스트레이터"))
+    return dict(r, ctx=ctx)
 
 
 def call(store, name, args):
@@ -56,7 +75,10 @@ def call(store, name, args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default=os.environ.get("CERT_DB"), required=not os.environ.get("CERT_DB"))
-    store = agents.Store(agents.resolve_db(ap.parse_args().db))
+    ap.add_argument("--profile", choices=["external", "internal"], default="external")
+    a = ap.parse_args()
+    store = agents.Store(agents.resolve_db(a.db))
+    tools, fn = (INTERNAL_TOOLS, call_internal) if a.profile == "internal" else (TOOLS, call)
     for line in sys.stdin:
         try:
             msg = json.loads(line)
@@ -68,11 +90,11 @@ def main():
         try:
             if method == "initialize":
                 res = {"protocolVersion": params.get("protocolVersion", "2025-06-18"), "capabilities": {"tools": {}},
-                       "serverInfo": {"name": "cert-platform", "version": "1.0"}}
+                       "serverInfo": {"name": "cert-platform" + ("-internal" if a.profile == "internal" else ""), "version": "1.1"}}
             elif method == "tools/list":
-                res = {"tools": TOOLS}
+                res = {"tools": tools}
             elif method == "tools/call":
-                out = call(store, params.get("name"), params.get("arguments") or {})
+                out = fn(store, params.get("name"), params.get("arguments") or {})
                 res = {"content": [{"type": "text", "text": json.dumps(out, ensure_ascii=False, indent=1)}]}
             elif method == "ping":
                 res = {}

@@ -42,6 +42,7 @@ try {
   await p.waitForFunction(() => document.querySelector("#orch-out")?.textContent.includes("최근 실행"), null, { timeout: 30000 }); await settle();
   const out = await p.textContent("#orch-out");
   ok("오케스트레이터: 계획 → Agent 순차 호출 → 결과 보고(알림 Agent가 만료 임박 알림 생성)", /정해진 점검 절차/.test(out) && /새 알림 1건/.test(out) && /수집 Agent/.test(out), out.slice(0, 200));
+  ok("오케스트레이터 → Agent 호출이 MCP(tools/call)로 이뤄짐", /MCP 도구 호출/.test(out) && (out.match(/MCP tools\/call/g) || []).length >= 4, (out.match(/MCP tools\/call/g) || []).length + "개 단계");
   const runSt = await p.$$eval("#orch-graph .node.ok, #orch-graph .node.bad, #orch-graph .node.human", (n) => n.length);
   ok("그래프에 Agent별 실행 결과 색 표시", runSt >= 3, `상태 표시 노드 ${runSt}개`);
   // 자가 진단
@@ -92,6 +93,10 @@ try {
   const mo = spawnSync("python3", [path.join(COPY, "mcp_server.py"), "--db", path.join(W, "p.db")], { input: mcpIn }).stdout.toString().trim().split("\n").map((l) => JSON.parse(l));
   ok("MCP 서버: initialize · tools/list(5개) · tools/call list_expiring → shop.demo.test", mo[0].result.serverInfo.name === "cert-platform" && mo[1].result.tools.length === 5 && mo[2].result.content[0].text.includes("shop.demo.test"),
     mo[1].result.tools.map((t) => t.name).join(", "));
+  const miIn = [{ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }, { jsonrpc: "2.0", id: 2, method: "tools/list" }].map((x) => JSON.stringify(x)).join("\n") + "\n";
+  const mi = spawnSync("python3", [path.join(COPY, "mcp_server.py"), "--db", path.join(W, "p.db"), "--profile", "internal"], { input: miIn }).stdout.toString().trim().split("\n").map((l) => JSON.parse(l));
+  const inames = mi[1].result.tools.map((t) => t.name);
+  ok("MCP 내부 프로필(오케스트레이터용): Agent 도구 9종 · 배포 실행 도구 없음", mi[0].result.serverInfo.name === "cert-platform-internal" && inames.length === 9 && !inames.some((n) => /deploy_run|delete|approve/.test(n)), inames.join(", "));
   await p.locator("#tabs button[data-tab=ops]").click(); await settle();
   fs.mkdirSync(path.join(SRC, "results", "acceptance", "shots"), { recursive: true });
   await p.locator("#p-ops").screenshot({ path: path.join(SRC, "results", "acceptance", "shots", "O01_ai_ops.png") });
