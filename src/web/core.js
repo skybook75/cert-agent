@@ -477,15 +477,16 @@
       review: { checks, pass, comment: comment || "", reviewed_by: actor, reviewed_at: nowIso } } }];
   }
   // 직전 배포본: 이 단계에 플랫폼으로 배포한 기록이 있으면 그것, 처음이면 갱신 전 인증서(그동안 서버에서 쓰던 것)를 직전본으로 본다
-  function approveDeployOps(dep, envs, actor, nowIso, certs) {
+  // applyAfter: 작업 시각(ISO, 선택) — 야간 작업 창. 지정하면 서버 Agent가 그 시각 이후에만 교체를 시작한다
+  function approveDeployOps(dep, envs, actor, nowIso, certs, applyAfter) {
     const id = envId(dep.stage, dep.subject_cn), env = envs.find(e => e.id === id);
     const cert = (certs || []).find(c => c.id === dep.cert_id);
     const prev = env ? env.cert_id : (cert && cert.replaces) || null;
     const history = [...((env && env.history) || []), { cert_id: dep.cert_id, action: "배포", by: actor, at: nowIso }].slice(-20);
     return [
       { op: "set", coll: "environments", id, data: { stage: dep.stage, stage_name: dep.stage_name, subject_cn: dep.subject_cn, cert_id: dep.cert_id,
-        prev_cert_id: prev, history, updated_at: nowIso } },
-      { op: "update", coll: "deployments", id: dep.id, data: { status: "배포 완료", approved_by: actor, approved_at: nowIso, prev_cert_id: prev } },
+        prev_cert_id: prev, history, updated_at: nowIso, apply_after: applyAfter || null } },
+      { op: "update", coll: "deployments", id: dep.id, data: { status: "배포 완료", approved_by: actor, approved_at: nowIso, prev_cert_id: prev, apply_after: applyAfter || null } },
     ];
   }
   function rollbackOps(dep, envs, actor, nowIso, reason) {

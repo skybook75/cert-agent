@@ -75,13 +75,14 @@ try {
   await A.reload(); await settle(A); await tab(A, "수집 승인"); await decideAll();
   const RV = await page(), AP = await page();
   await login(RV, "rev", "Temp2026a", "Review2026"); await login(AP, "apr", "Temp2026a", "Approve2026");
-  const pipeline = async () => { const res = [];
+  const pipeline = async (whenProd) => { const res = [];
     for (const st of ["개발", "테스트", "교육", "운영"]) {
       await A.reload(); await settle(A); await tab(A, "인증서"); await A.click("#p-certs tr[data-cert] >> text=shop.demo.test"); await sleep(200);
       if (await A.$eval("#d-deploy", (b) => b.disabled)) { res.push(st + ":요청불가 " + (await A.textContent("#cert-detail")).match(/검토 자동 검증[^\n]*/)?.[0]); break; }
       await A.click("#d-deploy"); await toast(A);
       await RV.reload(); await settle(RV); await tab(RV, "배포"); await RV.click("[data-rvpass]"); await toast(RV);
-      await AP.reload(); await settle(AP); await tab(AP, "배포"); await AP.click("[data-approve-dep]"); const t = await toast(AP); res.push(st + ":" + (/반영/.test(t) ? "완료" : t)); }
+      await AP.reload(); await settle(AP); await tab(AP, "배포"); if (st === "운영" && whenProd) { await AP.selectOption("[data-whensel]", "custom"); await AP.fill("[data-when]", whenProd); }
+      await AP.click("[data-approve-dep]"); const t = await toast(AP); res.push(st + ":" + (/반영|승인 완료/.test(t) ? "완료" : t)); }
     return res; };
   const p1 = await pipeline();
   ok("갱신본 4단계 승인(플랫폼)", p1.every((x) => x.endsWith("완료")) && p1.length === 4, p1.join(" "));
@@ -96,7 +97,15 @@ try {
   // ── 잘못된 인증서(키 불일치) → 설정 검사 실패 → 자동 원복
   py("tests/remote/make_remote.py", W, "badrenew");
   agent("web01", "collect"); await A.reload(); await settle(A); await tab(A, "수집 승인"); await decideAll();
-  const p2 = await pipeline();
+  // 야간 작업 창: 운영 단계를 '작업 시각'으로 예약 승인 → 그 전에는 서버 Agent에 작업이 내려가지 않고, 시각이 지나면 수행
+  const at = new Date(Math.ceil((Date.now() + 75e3) / 60e3) * 60e3), pad = (n) => String(n).padStart(2, "0");
+  const whenStr = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  const p2 = await pipeline(whenStr);
+  const d2pre = agent("web01", "deploy");
+  await A.reload(); await settle(A); await tab(A, "배포");
+  const sched = await A.textContent("#p-deploy");
+  ok("야간 작업 창: 작업 시각 예약 승인 → 시각 전에는 서버 Agent에 작업 없음 · 배포 화면에 '예약' 표시", /deploy: no approved task/.test(d2pre) && /예약 \d{4}-\d{2}-\d{2} \d{2}:\d{2} KST/.test(sched), `${p2.join(" ")} · ${(sched.match(/예약 [^작]*/) || [""])[0]}`);
+  while (Date.now() < at.getTime() + 2000) await sleep(1000);
   const d2 = agent("web01", "deploy"); console.log(d2);
   const served2 = execFileSync("sh", ["-c", `echo | openssl s_client -connect 127.0.0.1:${TLS} -servername shop.demo.test 2>/dev/null | openssl x509 -noout -fingerprint -sha256`]).toString().trim().split("=")[1];
   const env2 = (await api(A, "GET", "api/db/environments")).body.find((e) => e.stage === "prod");

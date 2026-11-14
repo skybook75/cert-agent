@@ -105,6 +105,7 @@ dl.kv dd { overflow-wrap: anywhere; }
 .finding { border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0 0 8px; }
 .finding.f-높음 { border-left-color: var(--crit); } .finding.f-중간 { border-left-color: var(--warn); } .finding.f-낮음 { border-left-color: var(--accent); }
 .finding pre { white-space: pre-wrap; font-size: 12px; color: var(--muted); margin: 6px 0; max-height: 120px; overflow: auto; }
+.approve-box { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 8px; background: #f0fdfb; }
 pre.diff { white-space: pre; overflow: auto; font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; max-height: 260px; }
 .examples button, .chips button { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -427,6 +428,7 @@ const pill = (s, cls = "s") => `<span class="pill ${cls}-${esc(String(s).replace
 const active = () => S.data.certificates.filter((c) => !c.replaced_by);
 const certById = (id) => S.data.certificates.find((c) => c.id === id);
 const dt = (iso) => esc(String(iso || "").slice(0, 16).replace("T", " "));
+const kst = (iso) => { try { return esc(new Date(iso).toLocaleString("sv-SE", { timeZone: "Asia/Seoul" }).slice(0, 16) + " KST"); } catch { return dt(iso); } };
 // 표 머리글을 각 칸의 data-l 로 복사 (좁은 화면 카드 보기용)
 function labelTables(root) {
   (root || document).querySelectorAll(".tbl table").forEach((t) => {
@@ -1102,7 +1104,9 @@ function renderDeploy() {
         ${approveQ.map((d) => { const blocked = [nameOf(d.requested_by), nameOf(d.review?.reviewed_by)].includes(me), ok = can("deploy.approve") && !blocked;
           return `<div class="card" style="padding:12px;margin-bottom:10px"><div class="row"><b class="grow">${esc(d.subject_cn)} → ${esc(d.stage_name)}</b>${pill(d.status, "d")}</div>
             <p class="note" style="margin:4px 0">요청 ${esc(d.requested_by)} · 검토 ${esc(d.review?.reviewed_by)} (${d.review?.checks?.filter((x) => x.ok).length}/${d.review?.checks?.length} 통과)${d.review?.comment ? ` · ${esc(d.review.comment)}` : ""}</p>
-            <div class="row"><button class="btn primary sm" data-approve-dep="${esc(d.id)}" ${ok ? "" : "disabled"}>승인 후 ${esc(d.stage_name)} 반영</button></div>
+            <div class="row when-row"><label class="note">작업 시각</label><select class="f" data-whensel="${esc(d.id)}" ${ok ? "" : "disabled"} aria-label="작업 시각"><option value="now">즉시</option><option value="night">오늘 밤 02:00 (야간 작업)</option><option value="custom">직접 지정</option></select><input class="f" type="datetime-local" data-when="${esc(d.id)}" style="display:none" aria-label="작업 시각 직접 지정">
+              <button class="btn primary sm" data-approve-dep="${esc(d.id)}" ${ok ? "" : "disabled"}>승인 후 ${esc(d.stage_name)} 반영</button></div>
+            <p class="note" style="margin:4px 0 0">야간 작업: 낮에 승인해 두면 지정한 시각에 서버 Agent가 백업 → 교체 → 설정 검사 → 재적용 → 실제 응답 확인을 하고, 실패하면 자동 원복합니다. 담당자가 밤에 대기하지 않아도 결과가 보고됩니다.</p>
             ${blocked ? `<p class="note">요청자·검토자는 승인할 수 없습니다.</p>` : ""}</div>`; }).join("") || `<p class="empty">승인할 배포가 없습니다.</p>`}
       </div>
     </div>
@@ -1111,7 +1115,7 @@ function renderDeploy() {
         const dep = S.data.deployments.find((d) => d.id === C.depId(e.cert_id, e.stage));
         const okRb = can("deploy.rollback") && e.prev_cert_id && dep && dep.status === "배포 완료";
         return `<tr><td class="nw">${esc(e.stage_name)}</td><td>${esc(e.subject_cn)}</td><td class="mono">${cur ? `만료 ${C.kstDate(cur.not_after)}` : e.cert_id ? esc(e.cert_id) : "없음"}</td><td class="mono">${prev ? `만료 ${C.kstDate(prev.not_after)}` : "-"}</td>
-          <td>${Object.entries(e.applied || {}).map(([h, a]) => `<div title="${esc(a.detail || "")}">${a.ok && a.cert_id === e.cert_id ? `<span class="pill ok">${esc(h)} 적용</span>` : a.failed_cert_id === e.cert_id ? `<span class="pill bad">${esc(h)} 실패·원복</span>` : `<span class="pill warn">${esc(h)} 대기</span>`}<span class="sub">${dt(a.at)}</span></div>`).join("") || `<span class="note">-</span>`}</td>
+          <td>${e.apply_after && new Date(e.apply_after) > new Date() ? `<div><span class="pill warn">예약 ${kst(e.apply_after)}</span><span class="sub">작업 시각에 서버 Agent가 교체·검증</span></div>` : ""}${Object.entries(e.applied || {}).map(([h, a]) => `<div title="${esc(a.detail || "")}">${a.ok && a.cert_id === e.cert_id ? `<span class="pill ok">${esc(h)} 적용</span>` : a.failed_cert_id === e.cert_id ? `<span class="pill bad">${esc(h)} 실패·원복</span>` : `<span class="pill warn">${esc(h)} 대기</span>`}<span class="sub">${dt(a.at)}</span></div>`).join("") || `<span class="note">-</span>`}</td>
           <td class="note">${last ? `${esc(last.action)} · ${esc(last.by)} · ${dt(last.at)}` : ""}</td>
           <td>${okRb ? `<div class="row"><input class="f" data-rbreason="${esc(dep.id)}" placeholder="원복 사유" style="width:130px" aria-label="원복 사유"><button class="btn danger sm" data-rollback="${esc(dep.id)}">직전 배포본으로 원복</button></div>` : ""}</td></tr>`; }), "아직 배포된 환경이 없습니다.", 820)}
     </div>
@@ -1128,10 +1132,19 @@ function renderDeploy() {
   };
   P.querySelectorAll("[data-rvpass]").forEach((b) => (b.onclick = () => review(b.dataset.rvpass, true)));
   P.querySelectorAll("[data-rvfail]").forEach((b) => (b.onclick = () => review(b.dataset.rvfail, false)));
+  P.querySelectorAll("[data-whensel]").forEach((sel) => (sel.onchange = () => { P.querySelector(`[data-when="${sel.dataset.whensel}"]`).style.display = sel.value === "custom" ? "" : "none"; }));
+  const whenOf = (id) => {
+    const v = P.querySelector(`[data-whensel="${id}"]`)?.value || "now";
+    if (v === "night") { const t = new Date(); t.setHours(26, 0, 0, 0); return t.toISOString(); }   // 다음 02:00(브라우저 현지 시각)
+    if (v === "custom") { const x = P.querySelector(`[data-when="${id}"]`).value; if (!x) throw new Error("작업 시각을 지정하세요"); const t = new Date(x); if (isNaN(t)) throw new Error("작업 시각 형식 오류"); return t.getTime() > Date.now() ? t.toISOString() : null; }
+    return null;
+  };
   P.querySelectorAll("[data-approve-dep]").forEach((b) => (b.onclick = async () => {
     const d = deps.find((x) => x.id === b.dataset.approveDep);
-    try { const r = await act("deploy.approve", C.approveDeployOps(d, S.data.environments, actor(), nowIso(), S.data.certificates), `${d.subject_cn} → ${d.stage_name} 반영`);
-      toast(`${d.stage_name} 환경에 반영했습니다${r.deployed?.file ? ` (${r.deployed.file})` : ""}`); await load(); } catch (e) { toast(`승인 실패: ${e.message}`); }
+    let when;
+    try { when = whenOf(d.id); } catch (e) { return toast(e.message); }
+    try { const r = await act("deploy.approve", C.approveDeployOps(d, S.data.environments, actor(), nowIso(), S.data.certificates, when), `${d.subject_cn} → ${d.stage_name} 반영${when ? ` (작업 시각 ${kst(when)})` : ""}`);
+      toast(when ? `${d.stage_name} 승인 완료 · ${kst(when)}에 서버 Agent가 교체·검증합니다` : `${d.stage_name} 환경에 반영했습니다${r.deployed?.file ? ` (${r.deployed.file})` : ""}`); await load(); } catch (e) { toast(`승인 실패: ${e.message}`); }
   }));
   P.querySelectorAll("[data-rollback]").forEach((b) => (b.onclick = async () => {
     const d = deps.find((x) => x.id === b.dataset.rollback);
@@ -1374,7 +1387,7 @@ function renderOps() {
     <div class="cols2">
       <div class="card"><h2>유지보수·개선 Agent <span class="note">${o.llm ? "생성형 AI 연결 · 코드 수정 가능" : "규칙형(생성형 AI 키 설정 시 코드 수정)"}</span></h2>
         ${o.llm_error ? `<p class="note" style="color:var(--warn)">최근 생성형 AI 호출 오류: ${esc(o.llm_error.slice(0, 200))} — 규칙형으로 대체 동작</p>` : ""}
-        <p class="note">버그 수정·기능 개선을 말로 요청하면 원인 분석 → 수정안 → <b>임시 사본에서 자동 테스트(컴파일·문법·서버 기동·화면 응답)</b> → 통과 시에만 반영하고 리포트를 남깁니다. 실패하면 오류를 근거로 최대 2번 다시 고치고(Self-Correction), 그래도 실패하면 반영하지 않습니다.</p>
+        <p class="note">버그 수정·기능 개선을 말로 요청하면 원인 분석 → 수정안 → <b>임시 사본에서 자동 테스트(컴파일·문법·서버 기동·화면 응답)</b> → 통과하면 <b>변경 내용을 보여주고 관리자 승인을 기다립니다</b>. 승인해야만 백업 후 시스템에 반영되고(반려 가능), 테스트에 실패하면 오류를 근거로 최대 2번 다시 고치고(Self-Correction) 그래도 실패하면 반영하지 않습니다.</p>
         <div class="examples" style="margin-bottom:8px">${MAINT_EX.map((g) => `<button type="button" data-mx="${esc(g)}">${esc(g)}</button>`).join("")}</div>
         <div class="chat" id="mchat" style="max-height:340px">${(o.chat || []).map((m) => `<div class="msg ${m.role === "user" ? "me" : "bot"}">${esc(m.text)}${m.report ? `<span class="meta">리포트 ${esc(m.report)} · ${esc(m.status || "")}</span>` : ""}</div>`).join("") || `<p class="note">예) “수집 승인 화면에서 담당자 입력칸을 기본으로 내 이름으로 채워줘”, “진단해줘”</p>`}</div>
         <form class="row" id="mchat-form" style="margin-top:8px"><input class="f grow" id="mchat-in" placeholder="버그 수정·기능 개선 요청 또는 질문" maxlength="2000" aria-label="유지보수 Agent에게 요청"><button class="btn primary" type="submit" id="mchat-send">보내기</button></form>
@@ -1383,13 +1396,13 @@ function renderOps() {
         <div class="row" style="margin-bottom:8px"><button class="btn" id="diag-run">지금 진단</button><span class="note">서버·화면 오류, 수집·배포 실패, 느린 API, 데이터 품질, Agent 미접속을 점검합니다.</span></div>
         ${o.findings.slice(0, 20).map((f) => `<div class="finding f-${esc(f.severity)}"><div class="row"><b class="grow">${esc(f.title)}</b>${pill(f.kind, "muted")} ${pill(f.severity, f.severity === "높음" ? "bad" : f.severity === "중간" ? "warn" : "muted")} ${pill(f.status, f.status === "열림" ? "warn" : "ok")}</div>
           ${f.evidence ? `<pre>${esc(f.evidence)}</pre>` : ""}<p class="note" style="margin:4px 0">제안: ${esc(f.proposal)}</p>${f.fix_result ? `<p class="note">반영 결과: ${esc(f.fix_result)}</p>` : ""}
-          ${f.status === "열림" ? `<div class="row">${f.fix ? `<button class="btn primary sm" data-ffix="${esc(f.id)}">${f.fix.type === "llm_patch" ? "수정안 만들어 반영" : "반영"}</button>` : ""}${f.link ? `<button class="btn sm" data-flink="${esc(f.link)}">해당 화면</button>` : ""}<button class="btn sm" data-fdis="${esc(f.id)}">무시</button></div>` : ""}</div>`).join("") || `<p class="empty">진단 결과가 없습니다. '지금 진단'을 눌러 보세요.</p>`}
+          ${f.status === "열림" ? `<div class="row">${f.fix ? `<button class="btn primary sm" data-ffix="${esc(f.id)}">${f.fix.type === "llm_patch" ? "수정안 만들기(승인 후 반영)" : "반영"}</button>` : ""}${f.link ? `<button class="btn sm" data-flink="${esc(f.link)}">해당 화면</button>` : ""}<button class="btn sm" data-fdis="${esc(f.id)}">무시</button></div>` : ""}</div>`).join("") || `<p class="empty">진단 결과가 없습니다. '지금 진단'을 눌러 보세요.</p>`}
       </div>
     </div>
     <div class="card"><h2>개선 결과 리포트</h2>
-      ${o.reports.map((r) => `<details class="finding"><summary><b>${esc(r.request.slice(0, 90))}</b> ${pill(r.status, r.status === "반영" ? "ok" : r.status === "되돌림" ? "muted" : "warn")} <span class="note">${dt(r.at)} · ${esc(r.actor)}</span></summary>
+      ${o.reports.map((r) => `<details class="finding"${r.status === "승인 대기" ? " open" : ""}><summary><b>${esc(r.request.slice(0, 90))}</b> ${pill(r.status, r.status === "반영" ? "ok" : ["되돌림", "반려"].includes(r.status) ? "muted" : "warn")} <span class="note">${dt(r.at)} · ${esc(r.actor)}</span></summary>
         <p>${esc(r.summary || "")}</p><ol class="trace">${(r.steps || []).map((x) => `<li class="${x.ok ? "ok" : "bad"}"><b>${esc(x.step)}</b><br><span style="white-space:pre-wrap">${esc(x.detail)}</span></li>`).join("")}</ol>
-        ${r.diff ? `<pre class="diff">${esc(r.diff)}</pre>` : ""}${r.status === "반영" ? `<button class="btn danger sm" data-rb="${esc(r.id)}">이 반영 되돌리기</button>` : ""}</details>`).join("") || `<p class="empty">아직 리포트가 없습니다.</p>`}
+        ${r.diff ? `<pre class="diff">${esc(r.diff)}</pre>` : ""}${r.status === "승인 대기" ? `<div class="row approve-box"><b class="grow">자동 테스트 통과 · 위 변경 내용을 확인하고 승인하면 시스템에 반영됩니다</b><button class="btn primary sm" data-mapprove="${esc(r.id)}">승인·반영</button><button class="btn sm" data-mreject="${esc(r.id)}">반려</button></div>` : ""}${r.status === "반영" ? `<p class="note">승인 ${esc(r.approved_by || "-")} · ${dt(r.approved_at)}</p><button class="btn danger sm" data-rb="${esc(r.id)}">이 반영 되돌리기</button>` : ""}</details>`).join("") || `<p class="empty">아직 리포트가 없습니다.</p>`}
       ${o.perf?.length ? `<h3>API 응답 시간 (최근)</h3>${tbl(["API", "건수", "p50(ms)", "p95(ms)"], o.perf.map((x) => `<tr><td class="mono">${esc(x.path)}</td><td class="num">${x.n}</td><td class="num">${x.p50}</td><td class="num">${x.p95}</td></tr>`), "", 480)}` : ""}
     </div>`;
   P.querySelectorAll("[data-goal]").forEach((b) => (b.onclick = () => { $("orch-goal").value = b.dataset.goal; runOrch(); }));
@@ -1400,6 +1413,8 @@ function renderOps() {
   P.querySelectorAll("[data-ffix]").forEach((b) => (b.onclick = async () => { b.disabled = true; b.textContent = "처리 중…"; try { const r = await api("POST", `api/ops/fix/${b.dataset.ffix}`); toast(r.result); } catch (e) { toast(`반영 실패: ${e.message}`); } await loadOps(); }));
   P.querySelectorAll("[data-fdis]").forEach((b) => (b.onclick = async () => { await api("POST", `api/ops/dismiss/${b.dataset.fdis}`); await loadOps(); }));
   P.querySelectorAll("[data-flink]").forEach((b) => (b.onclick = () => select(b.dataset.flink)));
+  P.querySelectorAll("[data-mapprove]").forEach((b) => (b.onclick = async () => { b.disabled = true; b.textContent = "반영 중…"; try { await api("POST", `api/ops/approve/${b.dataset.mapprove}`); toast("승인했습니다. 백업 후 반영하고 서버를 다시 시작합니다"); } catch (e) { toast(`반영 실패: ${e.message}`); } setTimeout(loadOps, 3500); }));
+  P.querySelectorAll("[data-mreject]").forEach((b) => (b.onclick = async () => { try { await api("POST", `api/ops/reject/${b.dataset.mreject}`); toast("반려했습니다. 시스템은 바뀌지 않습니다"); } catch (e) { toast(e.message); } await loadOps(); }));
   P.querySelectorAll("[data-rb]").forEach((b) => (b.onclick = async () => { if (!confirm("이 반영을 백업으로 되돌리고 서버를 다시 시작할까요?")) return; try { await api("POST", `api/ops/rollback/${b.dataset.rb}`); toast("되돌렸습니다. 잠시 후 새로고침하세요"); } catch (e) { toast(e.message); } setTimeout(loadOps, 2500); }));
   const mc = $("mchat"); if (mc) mc.scrollTop = mc.scrollHeight;
 }

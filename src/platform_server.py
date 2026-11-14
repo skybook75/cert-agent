@@ -28,7 +28,7 @@ import sys
 import threading
 import time
 import webbrowser
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -86,7 +86,7 @@ RULES = {
                      "import_runs.set": ("imp_", "*")},
     "deploy.request": {"deployments.set": ("dp_", "*")},
     "deploy.review": {"deployments.update": {"status", "review"}},
-    "deploy.approve": {"deployments.update": {"status", "approved_by", "approved_at", "prev_cert_id"}, "environments.set": ("env_", "*")},
+    "deploy.approve": {"deployments.update": {"status", "approved_by", "approved_at", "prev_cert_id", "apply_after"}, "environments.set": ("env_", "*")},
     "deploy.rollback": {"deployments.update": {"status", "rolled_back_by", "rolled_back_at", "rollback_reason", "restored_cert_id"},
                         "environments.set": ("env_", "*")},
     "noti.read": {"notifications.update": {"read", "read_by", "read_at"}},
@@ -98,6 +98,15 @@ ACTION_LABEL = {"discovery.decide": "수집 승인·반려", "discovery.review":
                 "secret.manage": "PFX 비밀번호 관리"}
 ACTOR_FIELDS = {"decided_by", "reviewed_by", "approved_by", "handled_by", "requested_by", "read_by", "rolled_back_by", "verified_by", "by", "uploaded_by", "deleted_by"}
 
+
+
+def _parse_ts(v):
+    """ISO 시각 → UTC aware datetime (형식 오류면 과거로 보아 막지 않음)."""
+    try:
+        d = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -647,6 +656,8 @@ class Handler(BaseHTTPRequestHandler):
                         continue
                     want = env.get("cert_id")
                     mine = (env.get("applied") or {}).get(host, {})
+                    if env.get("apply_after") and datetime.now(timezone.utc) < _parse_ts(env["apply_after"]):
+                        continue                          # 예약된 작업 시각 전: 아직 내려보내지 않음
                     if not want or mine.get("cert_id") == want or mine.get("failed_cert_id") == want:
                         continue
                     c = certs.get(want)
@@ -785,7 +796,7 @@ class Handler(BaseHTTPRequestHandler):
             if not msg:
                 raise ValueError("메시지를 입력하세요")
             return self._json(ops_agents.chat(STORE, msg, who))     # LLM 호출이 길 수 있어 전역 잠금 없이(문서 저장은 Store 잠금)
-        if method == "POST" and len(parts) == 4 and parts[2] in ("fix", "dismiss", "rollback"):
+        if method == "POST" and len(parts) == 4 and parts[2] in ("fix", "dismiss", "rollback", "approve", "reject"):
             if not agents.ID_RE.match(parts[3]):
                 raise Http(400, "ID 오류")
             if True:
@@ -796,6 +807,12 @@ class Handler(BaseHTTPRequestHandler):
                 if parts[2] == "dismiss":
                     STORE.update("maint", parts[3], {"status": "무시", "dismissed_by": who, "dismissed_at": agents.now_iso()})
                     return self._json({"ok": True})
+                if parts[2] == "approve":
+                    r = ops_agents.approve(STORE, parts[3], who)
+                    return self._json(r)
+                if parts[2] == "reject":
+                    r = ops_agents.reject(STORE, parts[3], who)
+                    return self._json(r)
                 return self._json(ops_agents.rollback(STORE, parts[3], who))
         raise Http(404, "not found")
 
@@ -946,6 +963,13 @@ class Handler(BaseHTTPRequestHandler):
             ed = (env_op or {}).get("data", {})
             if not env_op or ed.get("cert_id") != dep["cert_id"] or ed.get("stage") != dep["stage"] or ed.get("subject_cn") != dep["subject_cn"]:
                 raise Http(400, "배포 환경 정보가 배포 요청과 다릅니다")
+            if ed.get("apply_after"):                     # 작업 시각(야간 작업 창): 형식·범위 검사
+                try:
+                    aa = datetime.fromisoformat(str(ed["apply_after"]).replace("Z", "+00:00"))
+                except ValueError:
+                    raise Http(400, "작업 시각 형식 오류")
+                if aa.tzinfo is None or aa > datetime.now(timezone.utc) + timedelta(days=14):
+                    raise Http(400, "작업 시각은 14일 이내로 지정하세요")
             return {"deployed": self._deploy_file(dep["stage"], dep["subject_cn"], env_op["data"].get("cert_id"))}
         if action == "deploy.rollback":
             if dep.get("status") != "배포 완료" or new_status != "원복":

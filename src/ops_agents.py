@@ -5,12 +5,13 @@
                   initialize → tools/list → tools/call(JSON-RPC 2.0 · stdio). MCP 가 실패하면 같은 함수를 직접 호출해 점검은 멈추지 않는다.
                   배포처럼 되돌리기 어려운 단계는 실행하지 않고 '사람 승인 대기'로 남긴다(Human-in-the-loop).
   유지보수 Agent  ① 자가 진단: 서버·화면 오류, 수집·배포 실패, 느린 API, 데이터 품질, Agent 미접속을 찾아 버그 리포트·개선 제안
-                  ② 대화형 개선: 요청 → 원인 분석 → 수정안(파일 교체 블록) → 임시 사본에서 컴파일·문법·기동 테스트 → 통과 시에만 반영
-                     → 결과 리포트(무엇을·왜·테스트 결과) · 백업으로 되돌리기. 실패하면 반영하지 않음(Self-Correction 최대 2회 재시도)
+                  ② 대화형 개선: 요청 → 원인 분석 → 수정안(파일 교체 블록) → 임시 사본에서 컴파일·문법·기동 테스트 → 통과하면 '승인 대기'(변경 내용 표시)
+                     → 관리자 승인 시에만 반영(백업 후 교체·재시작) · 반려 가능 · 백업으로 되돌리기. 실패하면 반영하지 않음(Self-Correction 최대 2회 재시도)
   CLI             python ops_agents.py orchestrate "일일 운영 점검" --db platform.db   (작업 스케줄러·systemd timer 용)
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -35,6 +36,7 @@ import certlib  # noqa: E402
 now_iso = agents.now_iso
 EDITABLE = ["web/index.html", "web/core.js", "agents.py", "platform_server.py", "ops_agents.py", "certlib.py"]
 BACKUPS = BASE / "maint_backups"
+STAGED = BASE / "maint_staged"          # 테스트 통과 · 승인 대기 수정안
 
 # ───────────────────────────── 관측: 요청 시간·오류 (메모리 + DB)
 PERF = defaultdict(lambda: deque(maxlen=200))     # path → 최근 처리 시간(ms)
@@ -216,9 +218,10 @@ def apply_fix(store, fid: str, actor: str) -> dict:
         res = f"발송 {r['sent']}건, 실패 {len(r['failed'])}건" + (f" ({r['failed'][0]['error']})" if r["failed"] else "")
     elif t == "llm_patch":
         rep = improve(store, fix["request"], actor)
-        res = rep.get("summary", "")
-        if rep.get("status") == "반영" and fix.get("error_id"):
-            store.update("errors", fix["error_id"], {"resolved": True, "resolved_at": now_iso(), "report": rep["id"]})
+        res = (f"수정안 테스트 통과 → 승인 대기(리포트에서 '승인·반영'을 눌러야 반영) · " if rep.get("status") == "승인 대기" else "") + rep.get("summary", "")
+        if rep.get("status") == "승인 대기":
+            store.update("maint", fid, {"status": "승인 대기", "fix_result": res, "report": rep.get("id")})
+            return {"ok": True, "result": res}
     else:
         raise ValueError("자동 반영할 수 없는 항목입니다(제안 내용을 참고해 직접 처리)")
     store.update("maint", fid, {"status": "반영 완료", "fixed_at": now_iso(), "fixed_by": actor, "fix_result": res})
@@ -399,7 +402,7 @@ def improve(store, request: str, actor: str) -> dict:
         work = Path(tempfile.mkdtemp(prefix="maint_"))
         try:
             for item in BASE.iterdir():
-                if item.name in ("maint_backups", "__pycache__") or item.suffix == ".db":
+                if item.name in ("maint_backups", "maint_staged", "__pycache__") or item.suffix == ".db":
                     continue
                 if item.is_dir():
                     shutil.copytree(item, work / item.name, symlinks=True, ignore=shutil.ignore_patterns("node_modules", "__pycache__", "*.db"))
@@ -420,31 +423,66 @@ def improve(store, request: str, actor: str) -> dict:
             if not passed:
                 feedback = "; ".join(f"{t['test']}: {t['detail'][:200]}" for t in tests if not t["ok"])
                 continue
-            # 반영: 원본 백업 → 교체
-            bdir = BACKUPS / rid
-            bdir.mkdir(parents=True, exist_ok=True)
+            # 테스트 통과 → 바로 반영하지 않고 '승인 대기': 변경 내용(diff)을 사람에게 보여주고 관리자 승인 후 반영
             changed = sorted({e["file"] for e in plan["edits"]})
-            diffs = []
+            sdir = STAGED / rid
+            diffs, base_hash = [], {}
+            import difflib
             for rel in changed:
-                (bdir / rel).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(BASE / rel, bdir / rel)
-                import difflib
+                (sdir / rel).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(work / rel, sdir / rel)
+                base_hash[rel] = hashlib.sha256((BASE / rel).read_bytes()).hexdigest()
                 diffs.append("".join(difflib.unified_diff((BASE / rel).read_text(encoding="utf-8").splitlines(True),
                                                           (work / rel).read_text(encoding="utf-8").splitlines(True), f"a/{rel}", f"b/{rel}", n=2))[:6000])
-                shutil.copy2(work / rel, BASE / rel)
-            rep.update(status="반영", summary=plan.get("summary", "") + "\n실제 변경 " + _edit_brief(plan["edits"]), files=changed, diff="\n".join(diffs), backup=str(bdir), attempts=attempt)
-            step("반영", f"{', '.join(changed)} 교체 · 백업 {bdir.name} · 서버 재시작")
-            _mlog(f"apply: {','.join(changed)} backup={bdir.name} -> restarting service")
+            rep.update(status="승인 대기", summary=plan.get("summary", "") + "\n실제 변경 " + _edit_brief(plan["edits"]), files=changed,
+                       diff="\n".join(diffs), staged=str(sdir), base_hash=base_hash, attempts=attempt)
+            step("승인 대기", f"자동 테스트 {len(tests)}개 통과 · 변경 파일 {', '.join(changed)} — 관리자가 변경 내용을 확인하고 '승인·반영'을 눌러야 시스템에 반영됩니다")
+            _mlog(f"gate: green -> waiting for human approval (files={','.join(changed)})")
             store.set("maint", rid, rep)
-            store.set("audit", "a_maint_" + rid, {"at": now_iso(), "actor": f"유지보수 Agent(요청 {actor})", "action": "코드 개선 반영",
+            store.set("audit", "a_maint_req_" + rid, {"at": now_iso(), "actor": f"유지보수 Agent(요청 {actor})", "action": "코드 수정안 승인 요청",
                                                    "detail": f"{request[:120]} → {', '.join(changed)} (테스트 {len(tests)}개 통과)"})
-            _restart_soon()
             return dict(rep, id=rid)
         finally:
             shutil.rmtree(work, ignore_errors=True)
     rep.update(status="미반영", summary="자동 테스트를 통과하는 수정안을 만들지 못해 반영하지 않았습니다(서비스 영향 없음).")
     store.set("maint", rid, rep)
     return dict(rep, id=rid)
+
+
+def approve(store, rid: str, actor: str) -> dict:
+    """승인 대기 수정안을 사람이 승인 → 원본 백업 → 반영 → 서버 재시작."""
+    rep = store.get("maint", rid)
+    if not rep or rep.get("status") != "승인 대기":
+        raise ValueError("승인 대기 중인 수정안이 아닙니다")
+    sdir = Path(rep["staged"])
+    for rel, h in (rep.get("base_hash") or {}).items():          # 테스트 이후 원본이 바뀌었으면 반영하지 않음
+        if hashlib.sha256((BASE / rel).read_bytes()).hexdigest() != h:
+            store.update("maint", rid, {"status": "만료", "note": f"{rel} 원본이 테스트 이후 바뀌어 다시 요청해야 합니다"})
+            raise ValueError(f"{rel} 원본이 테스트 이후 바뀌었습니다. 다시 요청하세요")
+    bdir = BACKUPS / rid
+    bdir.mkdir(parents=True, exist_ok=True)
+    for rel in rep.get("files", []):
+        (bdir / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(BASE / rel, bdir / rel)
+        shutil.copy2(sdir / rel, BASE / rel)
+    steps = (rep.get("steps") or []) + [{"step": "승인·반영", "detail": f"{actor} 승인 → {', '.join(rep.get('files', []))} 교체 · 백업 {bdir.name} · 서버 재시작", "ok": True, "at": now_iso()}]
+    store.update("maint", rid, {"status": "반영", "approved_by": actor, "approved_at": now_iso(), "backup": str(bdir), "steps": steps})
+    store.set("audit", "a_maint_" + rid, {"at": now_iso(), "actor": actor, "action": "코드 개선 승인·반영",
+                                         "detail": f"{rep.get('request', '')[:120]} → {', '.join(rep.get('files', []))}"})
+    _mlog(f"approve: by human -> apply {','.join(rep.get('files', []))} backup={bdir.name} -> restarting service")
+    _restart_soon()
+    return {"ok": True, "status": "반영"}
+
+
+def reject(store, rid: str, actor: str) -> dict:
+    rep = store.get("maint", rid)
+    if not rep or rep.get("status") != "승인 대기":
+        raise ValueError("승인 대기 중인 수정안이 아닙니다")
+    shutil.rmtree(rep.get("staged", ""), ignore_errors=True)
+    store.update("maint", rid, {"status": "반려", "rejected_by": actor, "rejected_at": now_iso()})
+    store.set("audit", "a_maint_rj_" + rid, {"at": now_iso(), "actor": actor, "action": "코드 수정안 반려", "detail": rid})
+    _mlog("reject: by human -> not applied")
+    return {"ok": True, "status": "반려"}
 
 
 def rollback(store, rid: str, actor: str) -> dict:
@@ -471,6 +509,14 @@ def chat(store, message: str, actor: str) -> dict:
         reply = (f"자가 진단 결과 열린 항목 {len(fs)}건입니다.\n" + "\n".join(f"· [{f['severity']}·{f['kind']}] {f['title']}" for f in fs[:8])
                  + ("\n자동 반영 가능한 항목은 오른쪽 목록의 '반영' 버튼으로 처리할 수 있습니다." if fs else "\n특별한 문제가 없습니다."))
         extra = {"findings": len(fs)}
+    elif re.search(r"^(승인|반영해|승인해|반영 승인)", m):
+        reps = [r for r in store.list("maint") if r.get("type") == "report" and r.get("status") == "승인 대기"]
+        if reps:
+            last = sorted(reps, key=lambda r: r["at"])[-1]
+            approve(store, last["id"], actor)
+            reply = f"승인하신 수정안({last['request'][:60]})을 반영했습니다. 서버를 다시 시작합니다. 문제가 있으면 '되돌려줘'라고 하세요."
+        else:
+            reply = "승인 대기 중인 수정안이 없습니다."
     elif re.search(r"되돌려|원복|롤백", m):
         reps = [r for r in store.list("maint") if r.get("type") == "report" and r.get("status") == "반영"]
         if reps:
@@ -484,7 +530,7 @@ def chat(store, message: str, actor: str) -> dict:
         reply = f"미발송 알림을 발송했습니다: {r['sent']}건 성공, {len(r['failed'])}건 실패."
     elif re.search(r"고쳐|수정|바꿔|추가|개선|만들어|넣어|버그", m):
         rep = improve(store, m, actor)
-        reply = {"반영": f"반영했습니다. {rep.get('summary', '')}\n테스트 {sum(t['ok'] for t in rep.get('tests', []))}/{len(rep.get('tests', []))} 통과 · 변경 파일 {', '.join(rep.get('files', []))} · 서버 재시작 후 적용됩니다. 문제가 있으면 '되돌려줘'라고 하세요.",
+        reply = {"승인 대기": f"수정안을 만들어 자동 테스트 {sum(t['ok'] for t in rep.get('tests', []))}/{len(rep.get('tests', []))}개를 통과했습니다. {rep.get('summary', '')}\n아직 반영하지 않았습니다. 아래 '개선 결과 리포트'에서 변경 내용을 확인하고 '승인·반영'을 누르면 시스템에 반영됩니다(반려 가능).",
                  "미반영": rep.get("summary", ""), "보류": rep.get("summary", "")}.get(rep["status"], rep.get("summary", ""))
         extra = {"report": rep["id"], "status": rep["status"]}
     else:

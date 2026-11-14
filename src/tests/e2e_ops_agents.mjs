@@ -9,7 +9,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const SRC = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const W = "/tmp/cert_ops", COPY = path.join(W, "app"), PORT = 8791, BASE = `http://localhost:${PORT}/`;
 fs.rmSync(W, { recursive: true, force: true }); fs.mkdirSync(W, { recursive: true });
-execFileSync("sh", ["-c", `mkdir -p ${COPY} && cd ${SRC} && tar --exclude=results --exclude=__pycache__ --exclude=maint_backups --exclude='*.db' -cf - . | tar -xf - -C ${COPY}`]);
+execFileSync("sh", ["-c", `mkdir -p ${COPY} && cd ${SRC} && tar --exclude=results --exclude=__pycache__ --exclude=maint_backups --exclude=maint_staged --exclude='*.db' -cf - . | tar -xf - -C ${COPY}`]);
 const MOCK = path.join(W, "mock.json");
 fs.writeFileSync(MOCK, JSON.stringify({
   "어떤 파일을 봐야": { analysis: "배포 화면 제목에 단계 수를 표시해 달라는 UI 개선 요청이다.", files: ["web/index.html"] },
@@ -53,11 +53,17 @@ try {
   await p.fill("#mchat-in", "진단해줘"); await p.click("#mchat-send"); await settle(); await sleep(800);
   ok("유지보수 Agent 대화: '진단해줘' → 열린 항목 요약", /자가 진단 결과 열린 항목/.test(await p.textContent("#mchat")));
   await p.fill("#mchat-in", "배포 화면 제목에 4단계라고 표시되게 바꿔줘"); await p.click("#mchat-send");
-  await p.waitForFunction(() => /반영했습니다|반영하지 않았|보류/.test(document.querySelector("#mchat")?.textContent || ""), null, { timeout: 120000 }); await settle();
-  const st = await api("GET", "api/ops/state"); const rep = st.body.reports[0];
+  await p.waitForFunction(() => /승인 대기|아직 반영하지 않았|반영하지 않았|보류/.test(document.querySelector("#mchat")?.textContent || ""), null, { timeout: 120000 }); await settle();
+  let st = await api("GET", "api/ops/state"); let rep = st.body.reports[0];
+  const before = fs.readFileSync(path.join(COPY, "web/index.html"), "utf8").includes("배포 현황 (4단계)");
+  ok("코드 개선: 분석 → 수정안 → 임시 사본 자동 테스트 통과 → '승인 대기'(아직 미반영, 변경 내용 표시)", rep?.status === "승인 대기" && !before && rep.tests.length >= 5 && rep.tests.every((t) => t.ok) && /배포 현황 \(4단계\)/.test(rep.diff),
+    `${rep?.status} · 테스트 ${rep?.tests?.filter((t) => t.ok).length}/${rep?.tests?.length} · 원본 변경 ${before}`);
+  await p.locator("#tabs button[data-tab=ops]").click(); await settle();
+  ok("화면: 승인 대기 리포트에 변경 내용(diff)과 '승인·반영'·'반려' 버튼 표시", await p.isVisible(`[data-mapprove="${rep.id}"]`) && await p.isVisible(`[data-mreject="${rep.id}"]`));
+  await p.click(`[data-mapprove="${rep.id}"]`); await sleep(3500);
+  st = await api("GET", "api/ops/state"); rep = st.body.reports.find((r) => r.id === rep.id) || rep;
   const changed = fs.readFileSync(path.join(COPY, "web/index.html"), "utf8").includes("배포 현황 (4단계)");
-  ok("코드 개선: 분석 → 수정안 → 임시 사본 자동 테스트(컴파일·문법·기동·화면) 통과 → 반영 + 리포트", rep?.status === "반영" && changed && rep.tests.length >= 5 && rep.tests.every((t) => t.ok) && /배포 현황 \(4단계\)/.test(rep.diff),
-    `${rep?.status} · 테스트 ${rep?.tests?.filter((t) => t.ok).length}/${rep?.tests?.length} · ${rep?.files}`);
+  ok("관리자 '승인·반영' → 백업 후 반영 + 승인자 기록", changed && fs.existsSync(path.join(COPY, "maint_backups", rep.id, "web/index.html")), `원본 변경 ${changed}`);
   // 서버는 반영 후 스스로 재시작 → 화면 확인
   await sleep(3000); await p.goto(BASE); await settle();
   await p.locator("#tabs button[data-tab=deploy]").click(); await sleep(300);
@@ -69,6 +75,14 @@ try {
   const st2 = await api("GET", "api/ops/state"); const rep2 = st2.body.reports[0];
   ok("문법 오류 수정안 → 테스트 실패 → 2회 재시도 후에도 실패 → 반영하지 않음(서비스 영향 없음)", rep2.status === "미반영" && rep2.steps.filter((x) => /자동 테스트/.test(x.step)).length === 3 && fs.readFileSync(path.join(COPY, "agents.py"), "utf8").includes("def now_iso() -> str:"),
     `${rep2.status} · 시도 ${rep2.steps.filter((x) => /자동 테스트/.test(x.step)).length}회`);
+  // 반려: 승인 대기 수정안을 반려하면 시스템은 바뀌지 않음
+  const good = JSON.parse(fs.readFileSync(MOCK, "utf8")); good["old 문자열을 new 로"] = { summary: "알림 탭 제목 변경", edits: [{ file: "web/index.html", old: "<h3>배포 (개발 → 테스트 → 교육 → 운영)</h3>", new: "<h3>배포 4단계</h3>" }] };
+  fs.writeFileSync(MOCK, JSON.stringify(good));
+  await api("POST", "api/ops/chat", { message: "배포 단계 제목을 짧게 바꿔줘" });
+  const rj = (await api("GET", "api/ops/state")).body.reports[0];
+  const rjr = await api("POST", `api/ops/reject/${rj.id}`);
+  const rjAfter = (await api("GET", "api/ops/state")).body.reports.find((r) => r.id === rj.id);
+  ok("반려 → 반영하지 않음(원본 그대로)", rj.status === "승인 대기" && rjr.status === 200 && rjAfter.status === "반려" && !fs.readFileSync(path.join(COPY, "web/index.html"), "utf8").includes("<h3>배포 4단계</h3>"), `${rj.status} → ${rjAfter.status}`);
   // 되돌리기
   await p.locator("#tabs button[data-tab=ops]").click(); await settle();
   await p.evaluate(() => document.querySelectorAll("#p-ops details").forEach((d) => (d.open = true)));
@@ -80,7 +94,7 @@ try {
   await p.locator("#tabs button[data-tab=ops]").click(); await settle();
   const st3 = await api("GET", "api/ops/state");
   const aud = (await api("GET", "api/db/audit")).body.map((a) => a.action);
-  ok("감사 로그: 오케스트레이션·자가 진단·코드 개선 반영·되돌림", ["오케스트레이션 실행", "자가 진단", "코드 개선 반영", "코드 개선 되돌림"].every((k) => aud.includes(k)), [...new Set(aud)].filter((a) => /오케|진단|코드/.test(a)).join(", "));
+  ok("감사 로그: 오케스트레이션·자가 진단·승인 요청·승인 반영·반려·되돌림", ["오케스트레이션 실행", "자가 진단", "코드 수정안 승인 요청", "코드 개선 승인·반영", "코드 수정안 반려", "코드 개선 되돌림"].every((k) => aud.includes(k)), [...new Set(aud)].filter((a) => /오케|진단|코드/.test(a)).join(", "));
   // 권한: 담당자는 접근 불가
   await api("POST", "api/users", { username: "own", name: "김담당", email: "own@demo.test", role: "담당자", password: "Temp2026a" });
   const c2 = await browser.newContext(); const p2 = await c2.newPage(); await p2.goto(BASE);
