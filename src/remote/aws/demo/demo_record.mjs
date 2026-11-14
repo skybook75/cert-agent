@@ -44,7 +44,7 @@ function cursorScript() {
 
 async function open(scene, name) {
   const dir = path.join(OUT, scene);
-  const c = await browser.newContext({ viewport: { width: W, height: H }, locale: "ko-KR", bypassCSP: true, recordVideo: { dir, size: { width: W, height: H } } });
+  const c = await browser.newContext({ viewport: { width: W, height: H }, locale: "ko-KR", timezoneId: "Asia/Seoul", bypassCSP: true, recordVideo: { dir, size: { width: W, height: H } } });
   await c.addInitScript(cursorScript);
   const p = await c.newPage();
   const P = { scene, name, c, p, t0: Date.now(), pos: [640, 360] };   // t0: 녹화 시작 시각(epoch ms) — 서버 로그 시각과 맞추는 기준 OPEN.add(P);
@@ -185,7 +185,16 @@ const SCENES = {
       await hclick(RV, RV.p.locator("[data-rvpass]").first(), fast); await toast(RV.p); await sleep(fast ? 400 : 1500); mark(RV, `rev_${i}_e`);
       mark(AP, `apr_${i}_s`);
       await AP.p.reload(); await settle(AP.p); await htab(AP, "deploy", fast);
-      await hclick(AP, AP.p.locator("[data-approve-dep]").first(), fast); const t = await toast(AP.p); res.push(st + ":" + (/반영/.test(t) ? "완료" : t)); await sleep(fast ? 400 : 1800); mark(AP, `apr_${i}_e`);
+      if (i === 3 && process.env.DEMO_SCHEDULE !== "0") {   // 운영: 작업 시각 예약(야간 작업 창 시연 — 녹화에서는 약 2분 뒤로 지정)
+        const sel = AP.p.locator("[data-whensel]").first();
+        await moveTo(AP, sel); await sleep(700); await sel.selectOption("night"); await sleep(1500);
+        await sel.selectOption("custom"); await sleep(500);
+        const v = await AP.p.evaluate(() => { const t = new Date(Math.ceil((Date.now() + 130e3) / 60e3) * 60e3), p = (n) => String(n).padStart(2, "0");
+          return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}T${p(t.getHours())}:${p(t.getMinutes())}`; });
+        await moveTo(AP, AP.p.locator("[data-when]").first()); await AP.p.locator("[data-when]").first().fill(v); await sleep(1500);
+        await hover(AP, "#p-deploy .when-row + p.note", 2500); mark(AP, "sched"); log("schedule:", v);
+      }
+      await hclick(AP, AP.p.locator("[data-approve-dep]").first(), fast); const t = await toast(AP.p); res.push(st + ":" + (/반영|승인 완료/.test(t) ? "완료" : t)); await sleep(fast ? 400 : 2500); mark(AP, `apr_${i}_e`);
     }
     log("deploy:", res.join(" "));
     await close(A); await close(RV); await close(AP);
@@ -194,13 +203,14 @@ const SCENES = {
   async apply() {
     const A = await open("apply", "admin"); await login(A, "admin"); mark(A, "start");
     await htab(A, "deploy"); await sleep(800);
+    if (await A.p.locator("#p-deploy :text('예약')").count()) { await hover(A, "#p-deploy :text('예약')", 3500); mark(A, "sched_seen"); }
     const cur = async () => { const e = (await api(A.p, "GET", "api/db/environments")).body.find((x) => x.stage === "prod" && x.subject_cn === "shop.demo.test"); return e; };
     const e0 = await cur(); log("prod env:", JSON.stringify({ cert: e0?.cert_id, applied: e0?.applied }));
     mark(A, "wait_start");
-    for (let i = 0; i < 36; i++) {
+    for (let i = 0; i < 60; i++) {
       const e = await cur(); const a = e?.applied?.web01;
       if (a && a.cert_id === e.cert_id && (a.at || "") > new Date(Date.now() - 600000).toISOString()) { log("applied:", JSON.stringify(a)); break; }
-      if (a && a.cert_id === e.cert_id && a.ok !== undefined && i > 14) { log("applied(old?):", JSON.stringify(a)); break; }
+      if (a && a.cert_id === e.cert_id && a.ok !== undefined && i > 40) { log("applied(old?):", JSON.stringify(a)); break; }
       await sleep(5000); if (i % 3 === 2) { await A.p.reload(); await settle(A.p); await htab(A, "deploy", true); }
     }
     await A.p.reload(); await settle(A.p); await htab(A, "deploy", true); mark(A, "wait_end");
@@ -237,7 +247,7 @@ const SCENES = {
     log("qa:", ((await O.p.textContent("#chat")) || "").replace(/\s+/g, " ").slice(-500));
     mark(O, "end"); await close(O);
   },
-  // 10. 유지보수 Agent: 자가 진단 → 대화로 개선 요청 → 테스트 게이트 → 반영
+  // 10. 유지보수 Agent: 자가 진단 → 대화로 개선 요청 → 테스트 게이트 → 관리자 승인 → 반영
   async maint() {
     const A = await open("maint", "admin"); await login(A, "admin"); mark(A, "start");
     await htab(A, "ops"); await sleep(600);
@@ -248,16 +258,27 @@ const SCENES = {
     mark(A, "req");
     const req = process.env.MAINT_REQ || "대시보드의 '7일 내 만료 · 이미 만료된 건 제외' 타일 문구를 '7일 내 만료 예정'으로 바꿔줘";
     await htype(A, A.p.locator("#mchat-in"), req, 40); await hclick(A, A.p.locator("#mchat-send")); mark(A, "wait_start");
-    await A.p.waitForFunction(() => /반영했습니다|반영하지 않았|보류/.test(document.querySelector("#mchat")?.lastElementChild?.textContent || ""), null, { timeout: 600000 }).catch(() => {});
-    await sleep(2500);
+    await A.p.waitForFunction(() => /승인 대기|아직 반영하지 않았|반영하지 않았|보류/.test(document.querySelector("#mchat")?.lastElementChild?.textContent || ""), null, { timeout: 600000 }).catch(() => {});
+    await sleep(1500); mark(A, "wait_end");
     log("maint:", ((await A.p.locator("#mchat").last().textContent().catch(() => "")) || "").replace(/\s+/g, " ").slice(-600));
-    await sleep(5000); await A.p.goto(BASE); await settle(A.p);
-    if (await A.p.isVisible("#a-user").catch(() => false)) await login(A, "admin");
-    await htab(A, "ops", true); mark(A, "wait_end");
-    await A.p.evaluate(() => document.querySelectorAll("#p-ops details").forEach((d) => (d.open = true)));
+    await moveTo(A, A.p.locator("#mchat")); await sleep(3500);
     const rep = (await api(A.p, "GET", "api/ops/state")).body.reports?.[0];
-    log("maint report:", JSON.stringify({ status: rep?.status, summary: rep?.summary, tests: rep?.tests?.map((t) => `${t.name || t.step}:${t.ok}`) }));
-    const rl = A.p.locator("#p-ops :text('개선 리포트'), #p-ops details").first(); if (await rl.count()) { await moveTo(A, rl); await scrollBy(A, 300); await sleep(3500); }
+    log("maint report:", JSON.stringify({ status: rep?.status, summary: rep?.summary, tests: rep?.tests?.map((t) => `${t.test || t.step}:${t.ok}`) }));
+    const ab = A.p.locator(`[data-mapprove="${rep?.id}"]`);
+    if (await ab.count()) {                                   // 사람 승인: 변경 내용(diff) 확인 → 승인·반영
+      const rl = A.p.locator(`#p-ops details:has([data-mapprove="${rep.id}"])`).first();
+      await moveTo(A, rl); await sleep(1200);
+      const df = rl.locator("pre.diff"); if (await df.count()) { await moveTo(A, df); await sleep(3500); }
+      await moveTo(A, ab); await sleep(2000); mark(A, "approve");
+      await hclick(A, ab); const t = await toast(A.p).catch(() => ""); log("maint approve:", t); await sleep(6000);
+      await A.p.goto(BASE); await settle(A.p);
+      if (await A.p.isVisible("#a-user").catch(() => false)) await login(A, "admin");
+      await htab(A, "ops", true);
+      const rep2 = (await api(A.p, "GET", "api/ops/state")).body.reports?.find((r) => r.id === rep.id);
+      log("maint after approve:", JSON.stringify({ status: rep2?.status, approved_by: rep2?.approved_by }));
+      const r2 = A.p.locator("#p-ops details").first(); await A.p.evaluate(() => { const d = document.querySelector("#p-ops details"); if (d) d.open = true; });
+      await moveTo(A, r2); await sleep(2500);
+    }
     mark(A, "dash"); await htab(A, "dash"); await sleep(1200);
     for (const s of ["#p-dash .tile", "#p-dash .tile >> nth=1", "#p-dash .tile >> nth=2", "#p-dash .tile >> nth=3", "#p-dash .tile >> nth=4"]) await hover(A, s, 800);
     await sleep(1500); mark(A, "end"); await close(A);
