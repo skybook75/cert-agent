@@ -1,5 +1,5 @@
 {
- "at": "2026-11-05T14:19:04.089Z",
+ "at": "2026-11-14T05:46:23.344Z",
  "pass": 59,
  "total": 59,
  "steps": {
@@ -77,7 +77,7 @@
   {
    "name": "DB에는 암호문만(AES-256-GCM), 평문·키 없음",
    "pass": true,
-   "detail": "평문 0건 · 키 0건 · AES-256-GCM nonce lQ7+GWoNKhVnnquM"
+   "detail": "평문 0건 · 키 0건 · AES-256-GCM nonce fsHLpZCmLvsTTa9I"
   },
   {
    "name": "API로 평문·암호문 조회 불가",
@@ -132,7 +132,7 @@
   {
    "name": "불일치 건: 수집 만료일로 대장 갱신, 차이 기록",
    "pass": true,
-   "detail": "{\"field\":\"not_after\",\"label\":\"만료일\",\"before\":\"2027-12-01\",\"after\":\"2026-12-01\"}"
+   "detail": "{\"field\":\"not_after\",\"label\":\"만료일\",\"before\":\"2027-12-10\",\"after\":\"2026-12-10\"}"
   },
   {
    "name": "처리자는 세션 기준 기록(화면 값 무시)",
@@ -222,7 +222,7 @@
   {
    "name": "갱신본 승인 → 기존 갱신 완료·담당자 승계·알림 종료",
    "pass": true,
-   "detail": "새 만료 2027-12-11"
+   "detail": "새 만료 2027-12-19"
   },
   {
    "name": "갱신본 개발→테스트→교육→운영 4단계 배포",
@@ -232,7 +232,7 @@
   {
    "name": "운영 반영 기록(지문·만료일)",
    "pass": true,
-   "detail": "pay-renewed.crt · 2027-12-11"
+   "detail": "pay-renewed.crt · 2027-12-19"
   },
   {
    "name": "직무 분리: 요청자는 검토 불가(관리자 포함)",

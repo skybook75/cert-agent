@@ -7,7 +7,12 @@
  {
   "name": "오케스트레이터: 계획 → Agent 순차 호출 → 결과 보고(알림 Agent가 만료 임박 알림 생성)",
   "pass": true,
-  "detail": "최근 실행 · 2026-11-08 04:52 · 김관리(관리자) · 목표 “일일 운영 점검” · 정해진 점검 절차 · 17ms정상 모든 단계 정상수집 Agent · 서버 Agent 접속·최근 수집 현황 확인 0ms서버 Agent 0대(미접속 0) · 최근 수집 - 파일 0개 실패 0대조·검증 Agent · 승인 대기 수집 결과 분류 요약 0ms승인 대기 0"
+  "detail": "최근 실행 · 2026-11-14 05:41 · 김관리(관리자) · 목표 “일일 운영 점검” · 정해진 점검 절차 · MCP 도구 호출 · 190ms정상 모든 단계 정상수집 Agent · 서버 Agent 접속·최근 수집 현황 확인 MCP tools/call · 0ms서버 Agent 0대(미접속 0) · 최근 수집 - 파일 0개 실패 0대조·검증 Agent "
+ },
+ {
+  "name": "오케스트레이터 → Agent 호출이 MCP(tools/call)로 이뤄짐",
+  "pass": true,
+  "detail": "7개 단계"
  },
  {
   "name": "그래프에 Agent별 실행 결과 색 표시",
@@ -25,9 +30,19 @@
   "detail": ""
  },
  {
-  "name": "코드 개선: 분석 → 수정안 → 임시 사본 자동 테스트(컴파일·문법·기동·화면) 통과 → 반영 + 리포트",
+  "name": "코드 개선: 분석 → 수정안 → 임시 사본 자동 테스트 통과 → '승인 대기'(아직 미반영, 변경 내용 표시)",
   "pass": true,
-  "detail": "반영 · 테스트 10/10 · web/index.html"
+  "detail": "승인 대기 · 테스트 10/10 · 원본 변경 false"
+ },
+ {
+  "name": "화면: 승인 대기 리포트에 변경 내용(diff)과 '승인·반영'·'반려' 버튼 표시",
+  "pass": true,
+  "detail": ""
+ },
+ {
+  "name": "관리자 '승인·반영' → 백업 후 반영 + 승인자 기록",
+  "pass": true,
+  "detail": "원본 변경 true"
  },
  {
   "name": "재시작 후 실제 화면에 반영됨",
@@ -40,14 +55,19 @@
   "detail": "미반영 · 시도 3회"
  },
  {
+  "name": "반려 → 반영하지 않음(원본 그대로)",
+  "pass": true,
+  "detail": "승인 대기 → 반려"
+ },
+ {
   "name": "반영 되돌리기 → 원래 화면으로 복구",
   "pass": true,
   "detail": ""
  },
  {
-  "name": "감사 로그: 오케스트레이션·자가 진단·코드 개선 반영·되돌림",
+  "name": "감사 로그: 오케스트레이션·자가 진단·승인 요청·승인 반영·반려·되돌림",
   "pass": true,
-  "detail": "자가 진단, 코드 개선 되돌림, 코드 개선 반영, 오케스트레이션 실행"
+  "detail": "자가 진단, 코드 개선 되돌림, 코드 수정안 승인 요청, 코드 수정안 반려, 코드 개선 승인·반영, 오케스트레이션 실행"
  },
  {
   "name": "권한: 담당자는 AI 운영 API 접근 불가(403)",
@@ -58,5 +78,10 @@
   "name": "MCP 서버: initialize · tools/list(5개) · tools/call list_expiring → shop.demo.test",
   "pass": true,
   "detail": "list_expiring, get_certificate, deployment_status, diagnose, run_orchestration"
+ },
+ {
+  "name": "MCP 내부 프로필(오케스트레이터용): Agent 도구 9종 · 배포 실행 도구 없음",
+  "pass": true,
+  "detail": "collector_status, verifier_pending, notifier_run, notifier_send, deployer_plan, deployer_status, qa_brief, maint_diagnose, report_summary"
  }
 ]
