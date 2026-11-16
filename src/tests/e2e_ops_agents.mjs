@@ -76,13 +76,13 @@ try {
   ok("문법 오류 수정안 → 테스트 실패 → 2회 재시도 후에도 실패 → 반영하지 않음(서비스 영향 없음)", rep2.status === "미반영" && rep2.steps.filter((x) => /자동 테스트/.test(x.step)).length === 3 && fs.readFileSync(path.join(COPY, "agents.py"), "utf8").includes("def now_iso() -> str:"),
     `${rep2.status} · 시도 ${rep2.steps.filter((x) => /자동 테스트/.test(x.step)).length}회`);
   // 반려: 승인 대기 수정안을 반려하면 시스템은 바뀌지 않음
-  const good = JSON.parse(fs.readFileSync(MOCK, "utf8")); good["old 문자열을 new 로"] = { summary: "알림 탭 제목 변경", edits: [{ file: "web/index.html", old: "<h3>배포 (개발 → 테스트 → 교육 → 운영)</h3>", new: "<h3>배포 4단계</h3>" }] };
+  const good = JSON.parse(fs.readFileSync(MOCK, "utf8")); good["old 문자열을 new 로"] = { summary: "알림 탭 제목 변경", edits: [{ file: "web/index.html", old: "<h3>배포 (개발 → 테스트 → 운영)</h3>", new: "<h3>배포 단계표</h3>" }] };
   fs.writeFileSync(MOCK, JSON.stringify(good));
   await api("POST", "api/ops/chat", { message: "배포 단계 제목을 짧게 바꿔줘" });
   const rj = (await api("GET", "api/ops/state")).body.reports[0];
   const rjr = await api("POST", `api/ops/reject/${rj.id}`);
   const rjAfter = (await api("GET", "api/ops/state")).body.reports.find((r) => r.id === rj.id);
-  ok("반려 → 반영하지 않음(원본 그대로)", rj.status === "승인 대기" && rjr.status === 200 && rjAfter.status === "반려" && !fs.readFileSync(path.join(COPY, "web/index.html"), "utf8").includes("<h3>배포 4단계</h3>"), `${rj.status} → ${rjAfter.status}`);
+  ok("반려 → 반영하지 않음(원본 그대로)", rj.status === "승인 대기" && rjr.status === 200 && rjAfter.status === "반려" && !fs.readFileSync(path.join(COPY, "web/index.html"), "utf8").includes("<h3>배포 단계표</h3>"), `${rj.status} → ${rjAfter.status}`);
   // 되돌리기
   await p.locator("#tabs button[data-tab=ops]").click(); await settle();
   await p.evaluate(() => document.querySelectorAll("#p-ops details").forEach((d) => (d.open = true)));

@@ -249,7 +249,7 @@ try {
 
   // ───────── 11. 갱신본 4단계 배포 + 직무 분리
   const stagesDone = [];
-  for (const st of ["개발", "테스트", "교육", "운영"]) {
+  for (const st of ["개발", "테스트", "운영"]) {
     await PO.reload(); await settle(PO); await tab(PO, "인증서"); await PO.click("#p-certs tbody tr[data-cert]"); await sleep(200);
     const label = await PO.textContent("#d-deploy");
     await PO.click("#d-deploy"); await toastText(PO); count("배포 요청");
@@ -260,7 +260,7 @@ try {
     stagesDone.push(`${label.replace(" 배포 요청", "")}:${t.includes("반영했습니다") ? "완료" : t}`);
   }
   const prodDir = path.join(W, "deploy", "prod", "pay.example.co.kr");
-  ok("갱신본 개발→테스트→교육→운영 4단계 배포", stagesDone.every((s) => s.endsWith("완료")) && fs.existsSync(path.join(prodDir, "pay-renewed.crt")), stagesDone.join(" "));
+  ok("갱신본 개발→테스트→운영 단계별 배포", stagesDone.every((s) => s.endsWith("완료")) && fs.existsSync(path.join(prodDir, "pay-renewed.crt")), stagesDone.join(" "));
   const dj = JSON.parse(fs.readFileSync(path.join(prodDir, "DEPLOYED.json"), "utf8"));
   ok("운영 반영 기록(지문·만료일)", dj.fingerprint === payNew.fingerprint, `${dj.file} · ${dj.not_after?.slice(0, 10)}`);
   // 직무 분리: 관리자가 요청한 건을 관리자가 검토·승인할 수 없음

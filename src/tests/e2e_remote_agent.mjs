@@ -76,7 +76,7 @@ try {
   const RV = await page(), AP = await page();
   await login(RV, "rev", "Temp2026a", "Review2026"); await login(AP, "apr", "Temp2026a", "Approve2026");
   const pipeline = async (whenProd) => { const res = [];
-    for (const st of ["개발", "테스트", "교육", "운영"]) {
+    for (const st of ["개발", "테스트", "운영"]) {
       await A.reload(); await settle(A); await tab(A, "인증서"); await A.click("#p-certs tr[data-cert] >> text=shop.demo.test"); await sleep(200);
       if (await A.$eval("#d-deploy", (b) => b.disabled)) { res.push(st + ":요청불가 " + (await A.textContent("#cert-detail")).match(/검토 자동 검증[^\n]*/)?.[0]); break; }
       await A.click("#d-deploy"); await toast(A);
@@ -85,7 +85,7 @@ try {
       await AP.click("[data-approve-dep]"); const t = await toast(AP); res.push(st + ":" + (/반영|승인 완료/.test(t) ? "완료" : t)); }
     return res; };
   const p1 = await pipeline();
-  ok("갱신본 4단계 승인(플랫폼)", p1.every((x) => x.endsWith("완료")) && p1.length === 4, p1.join(" "));
+  ok("갱신본 단계별 승인(플랫폼)", p1.every((x) => x.endsWith("완료")) && p1.length === 3, p1.join(" "));
   const d1 = agent("web01", "deploy"); console.log(d1);
   const served = execFileSync("sh", ["-c", `echo | openssl s_client -connect 127.0.0.1:${TLS} -servername shop.demo.test 2>/dev/null | openssl x509 -noout -fingerprint -sha256`]).toString().trim().split("=")[1];
   ok("배포 Agent: 설치 → 설정 검사 → 재적용 → 실제 응답 지문 = 배포본", /report: .*ok=true/.test(d1) && /verify: .* MATCH/.test(d1) && served === fpNew, `${served?.slice(0, 23)}… · ${d1.match(/verify:[^\n]*/)?.[0]}`);

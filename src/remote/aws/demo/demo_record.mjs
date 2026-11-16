@@ -167,12 +167,12 @@ const SCENES = {
     await hover(O, "#vs-p1", 1200);
     mark(O, "end"); await close(O);
   },
-  // 6. 4단계 배포 승인(요청 김관리 → 검토 이검토 → 승인 최승인)
+  // 6. 단계별 배포 승인(요청 김관리 → 검토 이검토 → 승인 최승인)
   async deploy() {
     const A = await open("deploy", "admin"), RV = await open("deploy", "reviewer"), AP = await open("deploy", "approver");
     await login(A, "admin"); await login(RV, "rev"); await login(AP, "apr");
     const res = [];
-    for (const [i, st] of ["개발", "테스트", "교육", "운영"].entries()) {
+    for (const [i, st] of ["개발", "테스트", "운영"].entries()) {
       const fast = i > 0 && i < 3;
       mark(A, `req_${i}_s`);
       await A.p.reload(); await settle(A.p); await htab(A, "certs", fast);
@@ -185,7 +185,7 @@ const SCENES = {
       await hclick(RV, RV.p.locator("[data-rvpass]").first(), fast); await toast(RV.p); await sleep(fast ? 400 : 1500); mark(RV, `rev_${i}_e`);
       mark(AP, `apr_${i}_s`);
       await AP.p.reload(); await settle(AP.p); await htab(AP, "deploy", fast);
-      if (i === 3 && process.env.DEMO_SCHEDULE !== "0") {   // 운영: 작업 시각 예약(야간 작업 창 시연 — 녹화에서는 약 2분 뒤로 지정)
+      if (i === 2 && process.env.DEMO_SCHEDULE !== "0") {   // 운영: 작업 시각 예약(야간 작업 창 시연 — 녹화에서는 약 2분 뒤로 지정)
         const sel = AP.p.locator("[data-whensel]").first();
         await moveTo(AP, sel); await sleep(700); await sel.selectOption("night"); await sleep(1500);
         await sel.selectOption("custom"); await sleep(500);

@@ -160,7 +160,7 @@ details.agentlog ol { margin: 6px 0 0; padding-left: 20px; font-family: var(--fo
   <header>
     <div>
       <h1>인증서 관리 플랫폼</h1>
-      <span class="note">수집 · 알림 · QA 챗봇 Agent와 관리대장 · 승인 · 4단계 배포 · 보고서 · <a href="https://claude.ai/artifact/8Dmy99QR2AyK6QmzpXS6B5" target="_blank" rel="noopener" style="color:var(--accent)">PoC 단계별 리뷰 ↗</a></span>
+      <span class="note">수집 · 알림 · QA 챗봇 Agent와 관리대장 · 승인 · 단계별 배포 · 보고서 · <a href="https://claude.ai/artifact/8Dmy99QR2AyK6QmzpXS6B5" target="_blank" rel="noopener" style="color:var(--accent)">PoC 단계별 리뷰 ↗</a></span>
     </div>
     <div class="who" id="who">
       <span class="conn" id="conn"><i></i><span id="conn-text">연결 확인 중</span></span>
@@ -988,7 +988,7 @@ function certDetail(c) {
   const hist = S.data.renewals.filter((r) => r.old_cert_id === c.id || r.new_cert_id === c.id);
   const notis = S.data.notifications.filter((n) => n.cert_id === c.id);
   const next = C.STAGES.find((st) => C.deployState(c, S.data.deployments).find((x) => x.code === st.code).dep?.status !== "배포 완료");
-  let req = next ? C.canRequestStage(c, next.code, S.data.deployments) : { ok: false, why: "4단계 배포를 모두 마쳤습니다" };
+  let req = next ? C.canRequestStage(c, next.code, S.data.deployments) : { ok: false, why: "모든 단계 배포를 마쳤습니다" };
   // 요청 전 사전 검사: 검토자 자동 검증과 같은 항목 — 통과하지 못하면 요청 단계에서 막고 이유를 보여 줌
   const pre = req.ok ? C.deployChecks(c, S.data.certificates, S.data.environments, next.code) : [];
   const preBad = pre.filter((x) => !x.ok);
@@ -1022,7 +1022,7 @@ function certDetail(c) {
       <button class="btn primary" id="d-renew" ${mineOk("cert.renewal", c) ? "" : "disabled"}>갱신 결과 등록</button>
     </div>
     <p class="note">갱신 파일을 지정 폴더에 두면 수집 Agent가 갱신본으로 찾아 승인 대기로 올립니다. 승인된 갱신본은 아래 4단계 배포로 반영합니다.</p>`}
-    <h3>배포 (개발 → 테스트 → 교육 → 운영)</h3>
+    <h3>배포 (개발 → 테스트 → 운영)</h3>
     ${stagesHtml(c)}
     <div class="row" style="margin-top:8px">
       <input class="f grow" id="d-depnote" placeholder="배포 요청 메모 (예: 개발 서버 nginx 반영)" ${req.ok && mineOk("deploy.request", c) ? "" : "disabled"}>
@@ -1075,7 +1075,7 @@ function bindCertLinks(root) {
   });
 }
 
-// ───────── 배포 (4단계 승인·원복)
+// ───────── 배포 (단계별 승인·원복)
 function renderDeploy() {
   const me = S.user?.name, deps = S.data.deployments;
   const certsWith = active().filter((c) => c.fingerprint);
@@ -1084,7 +1084,7 @@ function renderDeploy() {
   const recent = [...deps].sort((a, b) => String(b.approved_at || b.review?.reviewed_at || b.requested_at).localeCompare(String(a.approved_at || a.review?.reviewed_at || a.requested_at))).slice(0, 20);
   $("p-deploy").innerHTML = `
     <div class="card"><h2>배포 현황</h2>
-      <p class="note">인증서 교체는 개발 → 테스트 → 교육 → 운영 순서로 진행합니다. 단계마다 <b>담당자 요청 → 검토자 자동 검증·검토 → 승인자 승인</b> 후 해당 환경에 반영되고, 문제가 생기면 승인자가 직전 배포본으로 원복합니다. 요청자·검토자·승인자는 서로 다른 사람이어야 합니다.</p>
+      <p class="note">인증서 교체는 개발 → 테스트 → 운영 순서로 진행합니다. 단계마다 <b>담당자 요청 → 검토자 자동 검증·검토 → 승인자 승인</b> 후 해당 환경에 반영되고, 문제가 생기면 승인자가 직전 배포본으로 원복합니다. 요청자·검토자·승인자는 서로 다른 사람이어야 합니다.</p>
       ${tbl(["인증서", "만료일", ...C.STAGES.map((s) => s.name), "담당자"], certsWith.map((c) => `<tr class="click" data-cert="${esc(c.id)}"><td>${esc(c.subject_cn)}<span class="sub">${esc(c.issuer_cn)}</span></td><td class="mono nw">${C.kstDate(c.not_after)}</td>${C.deployState(c, deps).map((s) => `<td>${s.dep ? pill(s.dep.status, "d") : `<span class="note">-</span>`}</td>`).join("")}<td>${esc(c.owner || "-")}</td></tr>`), "배포 대상 인증서가 없습니다.", 760)}
       <p class="note">배포 요청은 인증서 탭의 상세 화면에서 합니다.</p>
     </div>

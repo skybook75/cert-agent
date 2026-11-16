@@ -428,8 +428,8 @@
     return { rows, count };
   }
 
-  // ───────────── 4단계 배포 (개발 → 테스트 → 교육 → 운영) 승인·원복
-  const STAGES = [{ code: "dev", name: "개발" }, { code: "test", name: "테스트" }, { code: "edu", name: "교육" }, { code: "prod", name: "운영" }];
+  // ───────────── 단계별 배포 (개발 → 테스트 → 운영) 승인·원복
+  const STAGES = [{ code: "dev", name: "개발" }, { code: "test", name: "테스트" }, { code: "prod", name: "운영" }];
   const envId = (stage, cn) => "env_" + stage + "_" + hashId(String(cn).toLowerCase());
   const depId = (certId, stage) => "dp_" + certId + "_" + stage;
   function deployState(cert, deployments) {

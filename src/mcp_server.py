@@ -28,7 +28,7 @@ import ops_agents  # noqa: E402
 TOOLS = [
     {"name": "list_expiring", "description": "만료가 가까운 인증서 목록(남은 일수 기준)", "inputSchema": {"type": "object", "properties": {"days": {"type": "integer", "default": 30}}}},
     {"name": "get_certificate", "description": "인증서 이름(CN) 일부로 상세 조회", "inputSchema": {"type": "object", "properties": {"cn": {"type": "string"}}, "required": ["cn"]}},
-    {"name": "deployment_status", "description": "단계별(개발·테스트·교육·운영) 현재 배포본과 서버 적용 결과", "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "deployment_status", "description": "단계별(개발·테스트·운영) 현재 배포본과 서버 적용 결과", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "diagnose", "description": "유지보수 Agent 자가 진단(버그·운영·데이터 품질)", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "run_orchestration", "description": "오케스트레이터에 목표를 주고 실행(알림 생성·발송까지, 배포는 제안만)", "inputSchema": {"type": "object", "properties": {"goal": {"type": "string"}}, "required": ["goal"]}},
 ]

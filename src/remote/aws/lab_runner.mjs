@@ -141,7 +141,7 @@ try {
     while (await A.$("[data-approve]:not([disabled])")) { const id = await A.$eval("[data-approve]:not([disabled])", (b) => b.dataset.approve); const inp = await A.$(`[data-owner="${id}"]`); if (inp && !(await inp.inputValue())) await inp.fill("김담당"); await A.evaluate((i) => decide(i, true), id); await toast(A).catch(() => {}); await settle(A); n++; if (n > 10) break; }
     ok("갱신본 승인(기존 인증서 → 갱신 완료)", n >= 1, `${n}건`);
     const res = [];
-    for (const st of ["개발", "테스트", "교육", "운영"]) {
+    for (const st of ["개발", "테스트", "운영"]) {
       await A.reload(); await settle(A); await tab(A, "certs"); await A.click("#p-certs tr[data-cert] >> text=shop.demo.test"); await sleep(300);
       if (await A.$eval("#d-deploy", (b) => b.disabled)) { res.push(st + ":요청불가"); break; }
       await A.click("#d-deploy"); await toast(A);

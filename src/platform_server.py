@@ -565,7 +565,7 @@ class Handler(BaseHTTPRequestHandler):
             if not re.match(r"^[a-z0-9][a-z0-9-]{0,40}$", host):
                 raise ValueError("호스트 이름은 영문 소문자·숫자·- 로 입력하세요 (예: web01)")
             stage = b.get("deploy_stage") or ""
-            if stage not in ("", "dev", "test", "edu", "prod"):
+            if stage not in ("", "dev", "test", "prod"):
                 raise ValueError("배포 단계 값 오류")
             token = secrets.token_urlsafe(32)
             aid = "ag_" + host
@@ -985,7 +985,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _deploy_file(self, stage, cn, cert_id):
         """배포 폴더 deploy/<단계>/<인증서명>/ 에 인증서 파일 반영. 기존 파일은 history/<시각>/ 로 보관."""
-        if stage not in ("dev", "test", "edu", "prod"):
+        if stage not in ("dev", "test", "prod"):
             raise Http(400, "알 수 없는 배포 단계")
         safe = re.sub(r"[^0-9A-Za-z._-]", "_", str(cn))[:80] or "cert"
         target = DEPLOY_ROOT / stage / safe
@@ -1047,7 +1047,7 @@ def main(argv=None):
     ap.add_argument("--db", default=os.environ.get("CERT_DB") or str(BASE / "platform.db"),
                     help="SQLite 파일 경로 또는 postgresql://… (환경변수 CERT_DB 로도 지정 — 비밀번호를 명령줄에 남기지 않음)")
     ap.add_argument("--scan", help="수집 Agent가 스캔할 승인 폴더")
-    ap.add_argument("--deploy", default=str(BASE / "deploy"), help="단계별 배포 폴더 (deploy/<dev|test|edu|prod>/<인증서명>)")
+    ap.add_argument("--deploy", default=str(BASE / "deploy"), help="단계별 배포 폴더 (deploy/<dev|test|prod>/<인증서명>)")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--host", default="127.0.0.1", help="접속 허용 주소 (서버 설치 시 0.0.0.0, 방화벽·보안그룹으로 접근 제한)")

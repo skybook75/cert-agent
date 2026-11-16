@@ -228,7 +228,7 @@ try {
   scenario("S08", "갱신본 4단계 배포와 원복", "박지훈이 갱신본 배포를 요청하고 검토자·승인자가 단계별로 처리한다. 승인되면 플랫폼이 배포 폴더에 인증서 파일을 놓는다(서버 적용은 각 서버 담당 — 현재 범위). 마지막에 운영 단계를 원복한다.");
   await JI.reload(); await settle(JI);
   const stages = [];
-  for (const st of ["개발", "테스트", "교육", "운영"]) {
+  for (const st of ["개발", "테스트", "운영"]) {
     await tab(JI, "인증서"); await JI.click("#p-certs tr[data-cert] >> text=www.skax-demo.co.kr"); await sleep(250);
     if (await JI.$eval("#d-deploy", (b) => b.disabled)) { const why = await JI.textContent("#cert-detail"); step(`${st} 배포 요청`, "요청 가능", "버튼 비활성: " + (why.match(/(검토 자동 검증[^\n]*|[^\n]*요청할 수 있습니다|[^\n]*배포할 수 없습니다)/) || [why.slice(-200)])[0], false); break; }
     await JI.fill("#d-depnote", `${st} 웹서버 반영 요청`); await JI.click("#d-deploy"); await toast(JI);
@@ -242,7 +242,7 @@ try {
   }
   const prod = path.join(W, "deploy", "prod", "www.skax-demo.co.kr");
   const dj = fs.existsSync(path.join(prod, "DEPLOYED.json")) ? JSON.parse(fs.readFileSync(path.join(prod, "DEPLOYED.json"), "utf8")) : {};
-  step("요청→검토→승인 × 4단계", "개발·테스트·교육·운영 모두 완료", stages.join(" "), stages.length === 4 && stages.every((s) => s.includes("완료")));
+  step("요청→검토→승인 × 3단계", "개발·테스트·운영 모두 완료", stages.join(" "), stages.length === 3 && stages.every((s) => s.includes("완료")));
   step("배포 폴더 반영", "deploy/prod/www.skax-demo.co.kr/ 에 갱신 인증서 + DEPLOYED.json(지문·만료일)", `${fs.existsSync(prod) ? fs.readdirSync(prod).join(", ") : "없음"} · ${dj.not_after?.slice(0, 10)}`, dj.fingerprint === wNew?.fingerprint);
   const sodT = await api(JI, "POST", "api/action", { action: "deploy.review", ops: [{ op: "update", coll: "deployments", id: "dp_x", data: { status: "검토 통과" } }] });
   step("담당자가 검토 시도", "권한 없음", `HTTP ${sodT.status}`, sodT.status === 403);

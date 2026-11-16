@@ -549,7 +549,7 @@ AGENT_DEFS = [
     {"id": "collector", "name": "수집 Agent", "desc": "서버 Agent·폴더 스캔으로 인증서 발견·파싱·업로드"},
     {"id": "verifier", "name": "대조·검증 Agent", "desc": "관리대장과 수집 결과 대조, 갱신본·이전 버전 판별"},
     {"id": "notifier", "name": "알림 Agent", "desc": "D-30·D-7·만료 알림 생성, 이메일·문자·푸시 발송"},
-    {"id": "deployer", "name": "배포 Agent", "desc": "4단계 승인 배포, 서버 적용·검사·자동 원복"},
+    {"id": "deployer", "name": "배포 Agent", "desc": "단계별 승인 배포, 서버 적용·검사·자동 원복"},
     {"id": "qa", "name": "QA Agent", "desc": "가이드 RAG 기반 질의응답·답변 검증"},
     {"id": "maint", "name": "유지보수 AI", "desc": "자가 진단·버그 리포트·개선 반영"},
 ]
