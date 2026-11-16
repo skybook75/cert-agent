@@ -1080,8 +1080,8 @@ function renderDeploy() {
   const me = S.user?.name, deps = S.data.deployments;
   const certsWith = active().filter((c) => c.fingerprint);
   const reviewQ = deps.filter((d) => d.status === "요청"), approveQ = deps.filter((d) => d.status === "검토 통과");
-  const envs = [...S.data.environments].sort((a, b) => C.STAGES.findIndex((s) => s.code === a.stage) - C.STAGES.findIndex((s) => s.code === b.stage) || String(a.subject_cn).localeCompare(b.subject_cn));
-  const recent = [...deps].sort((a, b) => String(b.approved_at || b.review?.reviewed_at || b.requested_at).localeCompare(String(a.approved_at || a.review?.reviewed_at || a.requested_at))).slice(0, 20);
+  const envs = S.data.environments.filter((e) => C.STAGES.some((s) => s.code === e.stage)).sort((a, b) => C.STAGES.findIndex((s) => s.code === a.stage) - C.STAGES.findIndex((s) => s.code === b.stage) || String(a.subject_cn).localeCompare(b.subject_cn));
+  const recent = deps.filter((d) => C.STAGES.some((s) => s.code === d.stage)).sort((a, b) => String(b.approved_at || b.review?.reviewed_at || b.requested_at).localeCompare(String(a.approved_at || a.review?.reviewed_at || a.requested_at))).slice(0, 20);
   $("p-deploy").innerHTML = `
     <div class="card"><h2>배포 현황</h2>
       <p class="note">인증서 교체는 개발 → 테스트 → 운영 순서로 진행합니다. 단계마다 <b>담당자 요청 → 검토자 자동 검증·검토 → 승인자 승인</b> 후 해당 환경에 반영되고, 문제가 생기면 승인자가 직전 배포본으로 원복합니다. 요청자·검토자·승인자는 서로 다른 사람이어야 합니다.</p>
