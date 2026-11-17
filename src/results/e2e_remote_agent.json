@@ -45,14 +45,14 @@
   "detail": "upload: files=2 pending=1 renewal=1 known=2 failed=0"
  },
  {
-  "name": "갱신본 4단계 승인(플랫폼)",
+  "name": "갱신본 단계별 승인(플랫폼)",
   "pass": true,
-  "detail": "개발:완료 테스트:완료 교육:완료 운영:완료"
+  "detail": "개발:완료 테스트:완료 운영:완료"
  },
  {
   "name": "배포 Agent: 설치 → 설정 검사 → 재적용 → 실제 응답 지문 = 배포본",
   "pass": true,
-  "detail": "61:A8:11:8E:AC:52:5B:E1… · verify: 127.0.0.1:9443 sni=shop.demo.test http=200 served_sha256=61:A8:11:8E:AC:52:5B:E1... MATCH"
+  "detail": "AF:EE:D6:AF:DC:CA:3A:8E… · verify: 127.0.0.1:9443 sni=shop.demo.test http=200 served_sha256=AF:EE:D6:AF:DC:CA:3A:8E... MATCH"
  },
  {
   "name": "체인 유지: 맨 앞 서버 인증서만 교체, 중간 CA 유지",
@@ -72,12 +72,12 @@
  {
   "name": "야간 작업 창: 작업 시각 예약 승인 → 시각 전에는 서버 Agent에 작업 없음 · 배포 화면에 '예약' 표시",
   "pass": true,
-  "detail": "개발:완료 테스트:완료 교육:완료 운영:완료 · 예약 2026-11-14 14:45 KST"
+  "detail": "개발:완료 테스트:완료 운영:완료 · 예약 2026-11-17 00:33 KST"
  },
  {
   "name": "키가 맞지 않는 인증서: 설정 검사 실패 → 백업으로 자동 원복, 서비스는 기존 인증서 유지",
   "pass": true,
-  "detail": "개발:완료 테스트:완료 교육:완료 운영:완료 · 설정 검사 실패: SSL_CTX_use_PrivateKey failed: [X509: KEY_VALUES_MISMATCH] key values mismatch (_ssl.c:4129) → 백업 파일로 자동 원복"
+  "detail": "개발:완료 테스트:완료 운영:완료 · 설정 검사 실패: SSL_CTX_use_PrivateKey failed: [X509: KEY_VALUES_MISMATCH] key values mismatch (_ssl.c:4129) → 백업 파일로 자동 원복"
  },
  {
   "name": "배포 화면 '서버 적용' 열: 운영 web01 실패·원복 표시",
