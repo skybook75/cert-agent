@@ -8,7 +8,8 @@
 설정 파일(/etc/cert-agent/agent.json, Windows: C:\\ProgramData\\cert-agent\\agent.json)
   {"platform": "http://10.0.1.10:8000", "token": "...", "scan": ["/etc/nginx/ssl", "/etc/letsencrypt/live"],
    "service": {"check": "nginx -t", "reload": "systemctl reload nginx", "verify": "127.0.0.1:443"},
-   "winstore": ["LocalMachine\\My"]}   # Windows 만: 인증서 저장소도 수집
+   "winstore": ["LocalMachine\\My"],   # Windows 만: 인증서 저장소도 수집
+   "cafile": "/etc/pki/ca-trust/source/anchors/corp-ca.pem"}   # 선택: 플랫폼 HTTPS 를 사내 CA 로 발급했을 때
 
 보안
   - 개인키·PFX 파일은 보내지 않음. 보내는 것은 인증서(공개) DER 와 경로뿐
@@ -72,7 +73,8 @@ def call(c, method, path, body=None):
     req = urllib.request.Request(c["platform"].rstrip("/") + path, method=method,
                                  data=json.dumps(body).encode() if body is not None else None,
                                  headers={"Authorization": "Agent " + c["token"], "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=30) as r:
+    ctx = ssl.create_default_context(cafile=c["cafile"]) if c.get("cafile") else None   # 폐쇄망: 사내 CA 인증서 파일 지정 가능
+    with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
         return json.loads(r.read() or b"{}")
 
 

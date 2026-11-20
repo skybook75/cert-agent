@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>폐쇄망 설치 가이드</title>
+<style>
+:root{--bg:#f4f6f7;--card:#fff;--ink:#16232a;--muted:#5a6b73;--line:#d8e0e3;--acc:#0b6e69;--code:#eef2f3;--warn:#fff6e0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1719;--card:#152124;--ink:#e3ecec;--muted:#93a6ab;--line:#2a3a3e;--acc:#5cc7bf;--code:#1b2a2e;--warn:#2b2614}}
+:root[data-theme="dark"]{--bg:#0f1719;--card:#152124;--ink:#e3ecec;--muted:#93a6ab;--line:#2a3a3e;--acc:#5cc7bf;--code:#1b2a2e;--warn:#2b2614}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 system-ui,-apple-system,"Segoe UI","Malgun Gothic",sans-serif}
+main{max-width:880px;margin:0 auto;padding:40px 16px 80px}
+header h1{font-size:26px;margin:0 0 4px} header p{color:var(--muted);margin:0 0 22px}
+.dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 28px}
+.dl a{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;color:inherit;text-decoration:none}
+.dl a:hover{border-color:var(--acc)} .dl b{color:var(--acc)} .dl span{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+h2{font-size:20px;margin:40px 0 10px;padding-top:12px;border-top:1px solid var(--line)} h3{font-size:16px;margin:24px 0 8px}
+a{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:10px 0 16px;background:var(--card);font-size:14px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top} th{background:var(--code);white-space:nowrap}
+code{font:13px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);padding:1px 5px;border-radius:4px}
+pre{position:relative;background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto}
+pre code{background:none;padding:0;white-space:pre}
+pre button{position:absolute;top:8px;right:8px;font:12px system-ui;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:3px 8px;cursor:pointer}
+blockquote{margin:12px 0;padding:10px 14px;background:var(--warn);border-left:4px solid #d39b00;border-radius:6px}
+blockquote p{margin:0}
+hr{display:none}
+footer{color:var(--muted);font-size:13px;margin-top:40px}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>인증서 관리 AI Agent — 폐쇄망 설치 가이드</h1>
+<p>v1.0.0 · 관리 플랫폼(Linux) + 서버 Agent(Linux·Windows) · 인터넷 없이 설치</p>
+</header>
+<div class="dl">
+<a href="https://github.com/skybook75/cert-agent/releases/download/v1.0.0/cert-agent-offline-1.0.0.tar.gz"><b>전체 묶음 내려받기</b><span>cert-agent-offline-1.0.0.tar.gz · 소스·설치 스크립트·Qdrant</span></a>
+<a href="https://github.com/skybook75/cert-agent/releases/download/v1.0.0/cert-agent-agent-1.0.0.zip"><b>Agent 만 내려받기</b><span>cert-agent-agent-1.0.0.zip · 각 서버에 복사</span></a>
+<a href="https://github.com/skybook75/cert-agent/releases/download/v1.0.0/SHA256SUMS-1.0.0.txt"><b>SHA-256 해시</b><span>반입 전·후 무결성 확인</span></a>
+<a href="https://github.com/skybook75/cert-agent/tree/main/src"><b>소스 보기 (GitHub)</b><span>src/ · offline/ (설치 스크립트)</span></a>
+</div>
+<p>인터넷이 안 되는 사내망에 <strong>관리 플랫폼</strong>(웹)과 <strong>서버 Agent</strong>(인증서가 있는 각 서버)를 설치하는 순서입니다.
+위에서부터 그대로 따라 하면 됩니다.</p>
+<ul>
+<li>내려받기: <a href="https://github.com/skybook75/cert-agent/releases/tag/v1.0.0">https://github.com/skybook75/cert-agent/releases/tag/v1.0.0</a></li>
+<li>웹으로 보기: <a href="https://skybook75.github.io/cert-agent/install/">https://skybook75.github.io/cert-agent/install/</a></li>
+<li>소스: <a href="https://github.com/skybook75/cert-agent">https://github.com/skybook75/cert-agent</a> (<code>src/</code> 폴더)</li>
+</ul>
+<hr />
+<h2 id="0-한눈에-보기">0. 한눈에 보기</h2>
+<pre><code> [인터넷 PC]                    [반입]     [폐쇄망]
+ ① 묶음 내려받기                          ③ 플랫폼 서버 1대  ── https://cert.corp.local
+ ② prepare_online 실행(선택) ── USB 등 ──▶ ④ 각 서버에 Agent  ── 서버→플랫폼 방향으로만 접속
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>구성</th>
+<th>설치 위치</th>
+<th>필요한 것</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>관리 플랫폼</td>
+<td>Linux 서버 1대 (RHEL·Rocky·Alma 8/9, Amazon Linux 2023)</td>
+<td>Python 3.9+, cryptography / 선택: PostgreSQL, nginx, Qdrant</td>
+</tr>
+<tr>
+<td>서버 Agent</td>
+<td>인증서가 있는 서버 (Linux, Windows Server 2016+)</td>
+<td>Python 3.9+, cryptography</td>
+</tr>
+</tbody>
+</table>
+<p>권장 사양(플랫폼): 2 vCPU · 4 GB 메모리 · 20 GB 디스크. 벡터 DB 를 쓰지 않으면 2 GB 메모리로도 동작합니다.</p>
+<h3 id="내려받을-파일">내려받을 파일</h3>
+<table>
+<thead>
+<tr>
+<th>파일</th>
+<th>내용</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cert-agent-offline-1.0.0.tar.gz</code></td>
+<td>전체 묶음: 소스(<code>src/</code>), 설치 스크립트(<code>install/</code>), 준비 스크립트(<code>prepare/</code>), Qdrant 실행 파일(<code>bin/</code>), Agent 묶음(<code>agent/</code>)</td>
+</tr>
+<tr>
+<td><code>cert-agent-agent-1.0.0.zip</code></td>
+<td>각 서버에 복사할 Agent 만 (<code>cert_agent.py</code> + 설치 스크립트)</td>
+</tr>
+<tr>
+<td><code>SHA256SUMS-1.0.0.txt</code></td>
+<td>무결성 확인용 해시</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="1-인터넷-PC-묶음-내려받기">1. [인터넷 PC] 묶음 내려받기</h2>
+<pre><code class="language-bash"># Linux / macOS / WSL
+curl -LO https://github.com/skybook75/cert-agent/releases/download/v1.0.0/cert-agent-offline-1.0.0.tar.gz
+curl -LO https://github.com/skybook75/cert-agent/releases/download/v1.0.0/cert-agent-agent-1.0.0.zip
+curl -LO https://github.com/skybook75/cert-agent/releases/download/v1.0.0/SHA256SUMS-1.0.0.txt
+sha256sum -c SHA256SUMS-1.0.0.txt          # 둘 다 OK 가 나와야 합니다
+tar xzf cert-agent-offline-1.0.0.tar.gz
+</code></pre>
+<p>Windows PC 라면 위 주소를 브라우저로 내려받고 PowerShell 에서 <code>Get-FileHash 파일명</code> 으로 해시를 비교합니다.</p>
+<h2 id="2-인터넷-PC-추가-파일-채우기-필요할-때만">2. [인터넷 PC] 추가 파일 채우기 (필요할 때만)</h2>
+<p>묶음에는 <strong>소스·설치 스크립트·Qdrant</strong> 가 들어 있습니다. 아래 경우에만 인터넷 PC에서 준비 스크립트를 한 번 실행해 나머지를 채웁니다.</p>
+<table>
+<thead>
+<tr>
+<th>이런 경우</th>
+<th>채워지는 폴더</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>폐쇄망 dnf 저장소에 <code>python3-cryptography</code> 가 없다</td>
+<td><code>wheels/py39</code>, <code>wheels/py311</code>, <code>wheels/py312</code></td>
+</tr>
+<tr>
+<td>벡터 DB(하이브리드 검색)를 쓴다</td>
+<td><code>wheels/…</code>(fastembed) + <code>models/</code>(임베딩 모델 약 230 MB)</td>
+</tr>
+<tr>
+<td>Windows 서버에 Agent 를 설치한다</td>
+<td><code>windows/</code>(Python 설치 파일 + cryptography 휠)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-bash">cd cert-agent-offline-1.0.0
+./prepare/prepare_online.sh                 # 전부 (벡터 DB 안 쓰면 --no-vector)
+</code></pre>
+<pre><code class="language-powershell"># Windows 인터넷 PC
+cd cert-agent-offline-1.0.0
+powershell -ExecutionPolicy Bypass -File .\prepare\prepare_online.ps1        # 벡터 DB 안 쓰면 -NoVector
+</code></pre>
+<p>끝나면 <code>cert-agent-offline-1.0.0</code> <strong>폴더 전체</strong>를 반입 매체에 담아 폐쇄망으로 옮깁니다.
+반입 후 <code>sha256sum -c SHA256SUMS</code> (기본 묶음)와 <code>sha256sum -c SHA256SUMS.prepared</code> (채운 파일)로 확인합니다.</p>
+<hr />
+<h2 id="3-폐쇄망-관리-플랫폼-설치">3. [폐쇄망] 관리 플랫폼 설치</h2>
+<p>플랫폼 서버에 묶음 폴더를 복사한 뒤 <strong>root</strong> 로 실행합니다. OS 패키지(Python·PostgreSQL·nginx)는 사내 dnf 저장소(미러·ISO)에서 설치합니다.</p>
+<h3 id="3-1-가장-간단한-설치-SQLite-HTTP-8000">3-1. 가장 간단한 설치 (SQLite, HTTP 8000)</h3>
+<pre><code class="language-bash">cd cert-agent-offline-1.0.0
+sudo ./install/platform_install.sh
+</code></pre>
+<h3 id="3-2-운영-권장-설치-PostgreSQL-벡터-DB-HTTPS">3-2. 운영 권장 설치 (PostgreSQL + 벡터 DB + HTTPS)</h3>
+<pre><code class="language-bash">sudo ./install/platform_install.sh --db postgres --vector \
+     --https /root/cert/cert.corp.local.crt /root/cert/cert.corp.local.key
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>옵션</th>
+<th>하는 일</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--db postgres</code></td>
+<td>같은 서버에 PostgreSQL 설치·초기화, 127.0.0.1 전용·SCRAM 인증, 접속 정보는 <code>/etc/cert-platform/db.env</code>(600)에만, 매일 03:30 백업(14일)</td>
+</tr>
+<tr>
+<td><code>--vector</code></td>
+<td>Qdrant(127.0.0.1:6333) + 임베딩 모델로 가이드 색인 → QA 검색 1위 적중 85% → 95%</td>
+</tr>
+<tr>
+<td><code>--https 인증서 키</code></td>
+<td>nginx 가 443 에서 사내 인증서로 HTTPS 제공, 플랫폼은 127.0.0.1:8000 에만 열림</td>
+</tr>
+<tr>
+<td><code>--port 8000</code></td>
+<td>플랫폼 포트 변경</td>
+</tr>
+</tbody>
+</table>
+<p>스크립트는 다시 실행해도 안전합니다(설정·데이터·보관함 키 유지, 프로그램은 <code>src.bak.날짜</code> 로 보관 후 교체). 옵션은 나중에 추가로 실행해도 됩니다.</p>
+<h3 id="3-3-설치-결과">3-3. 설치 결과</h3>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>프로그램</td>
+<td><code>/opt/cert-agent/src</code>, 가상환경 <code>/opt/cert-agent/venv</code> (서비스 계정 <code>certplat</code>)</td>
+</tr>
+<tr>
+<td>데이터</td>
+<td><code>/var/lib/cert-platform</code> (SQLite DB, 배포 폴더, 임베딩 모델)</td>
+</tr>
+<tr>
+<td>설정·비밀 값</td>
+<td><code>/etc/cert-platform/env</code>, <code>db.env</code>, <strong><code>vault.key</code></strong> (모두 600)</td>
+</tr>
+<tr>
+<td>서비스</td>
+<td><code>cert-platform</code>(웹), <code>cert-notify.timer</code>(매일 09:05 만료 알림), 선택: <code>qdrant</code>, <code>postgresql</code>, <code>nginx</code></td>
+</tr>
+<tr>
+<td>백업</td>
+<td><code>/var/backups/cert-platform</code> (매일 03:30, 14일 보관)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong><code>vault.key</code> 는 DB 와 따로 백업하세요.</strong> PFX 비밀번호 보관함의 암호화 키입니다. 잃어버리면 저장된 PFX 비밀번호를 다시 등록해야 합니다.</p>
+</blockquote>
+<h3 id="3-4-첫-접속">3-4. 첫 접속</h3>
+<ol>
+<li>브라우저로 <code>http://&lt;서버IP&gt;:8000</code> (HTTPS 설치 시 <code>https://&lt;서버 이름&gt;</code>) 접속</li>
+<li><strong>'최초 관리자 계정 만들기'</strong> 화면에서 관리자 계정을 만듭니다. 첫 계정만 만들 수 있으므로 설치 직후 바로 만드세요.</li>
+<li>[관리] 탭에서
+   - 사용자 추가: 담당자·검토자·승인자·조회자 (새 사용자는 첫 로그인 때 비밀번호 변경)
+   - 메일(SMTP): 사내 SMTP 서버 주소·보내는 주소 입력 → [테스트 발송]</li>
+<li>[관리대장] 탭에서 기존 엑셀 관리대장을 올려 등록합니다.</li>
+</ol>
+<h3 id="3-5-폐쇄망-설정-etc-cert-platform-env">3-5. 폐쇄망 설정 (<code>/etc/cert-platform/env</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>설정</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ANTHROPIC_BASE_URL</code>, <code>ANTHROPIC_API_KEY</code>, <code>CLAUDE_MODEL</code></td>
+<td>사내 LLM 게이트웨이(Anthropic Messages API 호환)가 있으면 입력. <strong>비워 두면 QA 챗봇은 가이드 원문 검색형 답변</strong>으로 동작하고 나머지 기능은 모두 그대로 동작합니다.</td>
+</tr>
+<tr>
+<td><code>SMTP_PASSWORD</code></td>
+<td>사내 SMTP 가 계정 인증을 요구할 때만</td>
+</tr>
+<tr>
+<td><code>NTFY_URL</code></td>
+<td>사내 ntfy 서버로 휴대폰 푸시를 보낼 때만</td>
+</tr>
+<tr>
+<td><code>HF_HUB_OFFLINE=1</code></td>
+<td>임베딩 모델을 인터넷에서 찾지 않도록 고정(기본 설정됨)</td>
+</tr>
+</tbody>
+</table>
+<p>수정 후 <code>sudo systemctl restart cert-platform</code>.</p>
+<hr />
+<h2 id="4-폐쇄망-서버-Agent-설치-인증서가-있는-각-서버">4. [폐쇄망] 서버 Agent 설치 (인증서가 있는 각 서버)</h2>
+<h3 id="4-1-플랫폼에서-서버-등록-토큰-받기">4-1. 플랫폼에서 서버 등록 → 토큰 받기</h3>
+<p>관리자 로그인 → <strong>[관리] 탭 → '서버 Agent' → 서버 등록</strong>(호스트·OS·배포 단계) → <strong>[등록하고 토큰 발급]</strong> → 토큰 복사(한 번만 표시).</p>
+<ul>
+<li>배포 단계: <code>수집만</code> 또는 <code>개발/테스트/운영 서버(배포 적용)</code> — 승인된 인증서 교체를 이 서버에 직접 적용할지 정합니다.</li>
+</ul>
+<h3 id="4-2-Linux-서버">4-2. Linux 서버</h3>
+<p><code>cert-agent-agent-1.0.0.zip</code> 을 풀거나 묶음의 <code>agent/</code> 폴더를 서버에 복사한 뒤:</p>
+<pre><code class="language-bash"># nginx 서버 (교체 후 설정 검사 → 재적용 → 443 응답 지문 확인까지 자동, 실패 시 자동 원복)
+sudo ./agent_install.sh --platform https://cert.corp.local --token &lt;토큰&gt; --scan /etc/nginx/ssl --nginx
+
+# 수집만 하는 서버
+sudo ./agent_install.sh --platform https://cert.corp.local --token &lt;토큰&gt; --scan /etc/pki/tls/certs,/opt/app/ssl
+
+# 그 외 웹서버(예: Apache)
+sudo ./agent_install.sh --platform https://cert.corp.local --token &lt;토큰&gt; --scan /etc/httpd/ssl \
+     --check &quot;apachectl configtest&quot; --reload &quot;systemctl reload httpd&quot; --verify 127.0.0.1:443
+</code></pre>
+<ul>
+<li>플랫폼 HTTPS 를 사내 CA 로 발급했다면 <code>--cafile /etc/pki/ca-trust/source/anchors/corp-ca.pem</code> 추가 (또는 서버에 사내 CA 를 <code>update-ca-trust</code> 로 신뢰 등록)</li>
+<li>cryptography 가 없으면 OS 패키지 → 묶음의 <code>wheels/</code> 순서로 자동 설치합니다(묶음 폴더째 복사했을 때).</li>
+</ul>
+<h3 id="4-3-Windows-서버-IIS-등">4-3. Windows 서버 (IIS 등)</h3>
+<p>묶음 폴더째(또는 <code>agent/</code> + <code>windows/</code>) 복사한 뒤 <strong>관리자 PowerShell</strong>:</p>
+<pre><code class="language-powershell">powershell -ExecutionPolicy Bypass -File .\agent\agent_install.ps1 -Platform https://cert.corp.local -Token &lt;토큰&gt; -Scan &quot;C:\certs&quot;
+</code></pre>
+<p>Python 이 없으면 <code>windows\python-3.12.7-amd64.exe</code> 로 조용히 설치하고, Windows 인증서 저장소(<code>LocalMachine\My</code>)도 함께 수집합니다.</p>
+<h3 id="4-4-동작-확인">4-4. 동작 확인</h3>
+<ul>
+<li>플랫폼 <strong>[수집 승인]</strong> 탭에 이 서버의 인증서가 올라오면 정상입니다.</li>
+<li>이후 Agent 는 <strong>1분마다</strong> 플랫폼의 [수집 실행] 요청·승인된 배포를 확인하고, <strong>30분마다</strong> 전체 수집합니다.</li>
+<li>로그: Linux <code>journalctl -u cert-agent -u cert-agent-poll -f</code> / Windows 작업 스케줄러 <code>cert-agent</code>, <code>cert-agent-poll</code></li>
+</ul>
+<hr />
+<h2 id="5-방화벽">5. 방화벽</h2>
+<table>
+<thead>
+<tr>
+<th>출발 → 도착</th>
+<th>포트</th>
+<th>용도</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>사용자 PC → 플랫폼</td>
+<td>443 (또는 8000)</td>
+<td>웹 화면</td>
+</tr>
+<tr>
+<td>각 서버 Agent → 플랫폼</td>
+<td>443 (또는 8000)</td>
+<td>수집 결과 업로드·배포 작업 수신 (<strong>Agent 쪽에서만 접속</strong>, 플랫폼 → 서버 방향 포트 불필요)</td>
+</tr>
+<tr>
+<td>플랫폼 → 사내 SMTP</td>
+<td>25 / 587</td>
+<td>만료 알림 메일</td>
+</tr>
+<tr>
+<td>플랫폼 → 사내 LLM 게이트웨이</td>
+<td>443</td>
+<td>(선택) QA 챗봇 생성형 답변</td>
+</tr>
+</tbody>
+</table>
+<p>PostgreSQL(5432)과 Qdrant(6333)는 플랫폼 서버 안(127.0.0.1)에서만 열립니다.</p>
+<h2 id="6-운영">6. 운영</h2>
+<pre><code class="language-bash">systemctl status cert-platform              # 상태
+journalctl -u cert-platform -f              # 로그
+systemctl list-timers 'cert-*'              # 알림·Agent 타이머
+sudo -u certplat /opt/cert-agent/venv/bin/python /opt/cert-agent/src/agents.py notify --send   # 만료 알림 즉시 실행
+</code></pre>
+<ul>
+<li><strong>업그레이드</strong>: 새 묶음을 풀고 같은 옵션으로 <code>platform_install.sh</code> 를 다시 실행 → 이전 프로그램은 <code>/opt/cert-agent/src.bak.날짜</code> 에 보관됩니다. Agent 는 <code>agent_install.sh</code> 를 같은 인자로 다시 실행합니다.</li>
+<li><strong>되돌리기</strong>: <code>systemctl stop cert-platform</code> → <code>src</code> 를 <code>src.bak.날짜</code> 로 바꾸고 → <code>systemctl start cert-platform</code></li>
+<li><strong>백업 대상</strong>: DB(자동 백업), <code>/etc/cert-platform/vault.key</code>, <code>/etc/cert-platform/env</code> — vault.key 는 DB 와 <strong>다른 매체</strong>에 보관</li>
+<li><strong>Agent 제거(Linux)</strong>: <code>systemctl disable --now cert-agent.timer cert-agent-poll.timer &amp;&amp; rm -rf /opt/cert-agent /etc/cert-agent /etc/systemd/system/cert-agent*</code> 후 플랫폼에서 해당 서버 Agent 삭제(토큰 즉시 무효)</li>
+</ul>
+<h2 id="7-문제-해결">7. 문제 해결</h2>
+<table>
+<thead>
+<tr>
+<th>증상</th>
+<th>확인</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cryptography 가 없습니다</code></td>
+<td>사내 저장소에 <code>python3-cryptography</code> 가 있는지, 없으면 인터넷 PC에서 <code>prepare_online</code> 실행 후 <code>wheels/</code> 반입</td>
+</tr>
+<tr>
+<td><code>Python 3.9 이상이 필요합니다</code> (RHEL 8)</td>
+<td><code>dnf install python3.11</code> (AppStream) 후 다시 실행</td>
+</tr>
+<tr>
+<td>화면이 안 열림</td>
+<td><code>systemctl status cert-platform</code>, 방화벽 포트, HTTPS 설치 시 <code>nginx -t</code> / SELinux <code>setsebool -P httpd_can_network_connect 1</code></td>
+</tr>
+<tr>
+<td>Agent 첫 실행 실패</td>
+<td>플랫폼 주소·토큰 오타, Agent → 플랫폼 포트 방화벽, 사내 CA 사용 시 <code>--cafile</code></td>
+</tr>
+<tr>
+<td><code>가이드 색인 실패</code> (--vector)</td>
+<td><code>models/</code> 가 비어 있음 → 인터넷 PC에서 <code>prepare_online</code> 으로 모델을 채워 반입</td>
+</tr>
+<tr>
+<td>QA 챗봇이 원문만 보여 줌</td>
+<td>정상(LLM 미설정 시 검색형 답변). 사내 LLM 게이트웨이가 있으면 3-5 설정</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8-보안-요약">8. 보안 요약</h2>
+<ul>
+<li>개인키·PFX 파일은 플랫폼으로 보내지 않습니다. Agent 는 인증서 공개 부분(DER)과 경로만 올립니다.</li>
+<li>PFX·서버 접속 비밀번호는 AES-256-GCM 으로 암호화 보관(키는 DB 와 분리), Agent 에는 Agent 공개키(RSA-OAEP)로 감싸서만 전달합니다.</li>
+<li>사용자 비밀번호 PBKDF2-SHA256, 세션 쿠키(HttpOnly·SameSite=Strict) + CSRF 토큰, 5회 실패 시 10분 잠금.</li>
+<li>모든 변경은 서버의 권한 검사(역할·항목·상태 순서·담당 범위·직무 분리)를 거치고 감사 로그에 남습니다.</li>
+<li>플랫폼은 전용 계정(<code>certplat</code>)으로 실행되며 systemd 보호 옵션(<code>NoNewPrivileges</code>, <code>ProtectSystem=full</code>)을 씁니다.</li>
+<li>Agent 토큰은 플랫폼에 해시만 저장되며, 서버 Agent 를 삭제하면 즉시 무효가 됩니다.</li>
+</ul>
+<footer>2026 AI Master Project · 인증서 관리 AI Agent · 이 페이지는 저장소의 offline/README.md 로 만들어집니다.</footer>
+</main>
+<script>
+document.querySelectorAll("pre").forEach(function (p) {
+  var b = document.createElement("button"); b.type = "button"; b.textContent = "복사";
+  b.onclick = function () { var t = p.querySelector("code").innerText;
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { b.textContent = "복사됨"; setTimeout(function () { b.textContent = "복사"; }, 1500); }, function () { b.textContent = "선택해 복사하세요"; }); };
+  p.appendChild(b);
+});
+</script>
+</body>
+</html>

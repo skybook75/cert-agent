@@ -381,7 +381,7 @@ def send_push(cfg: dict, title: str, text: str, priority="high"):
     topic = cfg.get("push_topic")
     if not topic:
         raise RuntimeError("푸시 주제 미설정")
-    req = urllib.request.Request(f"https://ntfy.sh/{topic}", data=text[:1000].encode("utf-8"), method="POST",
+    req = urllib.request.Request(os.environ.get("NTFY_URL", "https://ntfy.sh").rstrip("/") + f"/{topic}", data=text[:1000].encode("utf-8"), method="POST",
                                  headers={"Title": "=?UTF-8?B?" + base64.b64encode(title.encode("utf-8")).decode() + "?=", "Priority": priority, "Tags": "warning"})
     urllib.request.urlopen(req, timeout=10).read()
 
@@ -440,6 +440,8 @@ def mail_notifications(store: Store, ids=None, actor="알림 Agent") -> dict:
 
 
 # ───────────────────────────── QA Agent LLM 호출 (Claude)
+# 폐쇄망: ANTHROPIC_BASE_URL 에 사내 LLM 게이트웨이(Anthropic Messages API 호환) 주소를 넣는다. 키가 없으면 검색형 답변으로 자동 전환.
+LLM_BASE = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com").rstrip("/")
 LLM_STATE = {"model": None, "last_error": None}
 MODEL_CANDIDATES = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-sonnet-4-5", "claude-3-5-sonnet-latest"]
 
@@ -447,7 +449,7 @@ MODEL_CANDIDATES = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", 
 def _available_models(key: str) -> list[str]:
     """계정에서 쓸 수 있는 모델 목록(Models API) — Sonnet 계열 우선, 최신순."""
     try:
-        req = urllib.request.Request("https://api.anthropic.com/v1/models?limit=50", headers={"x-api-key": key, "anthropic-version": "2023-06-01"})
+        req = urllib.request.Request(LLM_BASE + "/v1/models?limit=50", headers={"x-api-key": key, "anthropic-version": "2023-06-01"})
         with urllib.request.urlopen(req, timeout=20) as r:
             ids = [m["id"] for m in json.loads(r.read()).get("data", [])]
     except Exception:  # noqa: BLE001
@@ -465,7 +467,7 @@ def ask_claude(prompt: str, model: str | None = None, timeout=120, max_tokens=90
     last = None
     for m in dict.fromkeys(cands):
         body = json.dumps({"model": m, "max_tokens": max_tokens, "temperature": 0, "messages": [{"role": "user", "content": prompt}]}).encode()
-        req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=body, method="POST", headers={
+        req = urllib.request.Request(LLM_BASE + "/v1/messages", data=body, method="POST", headers={
             "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:

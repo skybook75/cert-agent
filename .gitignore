@@ -1,3 +1,4 @@
 src/maint_backups/
 src/maint_staged/
 **/__pycache__/
+dist/
