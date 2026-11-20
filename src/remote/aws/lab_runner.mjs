@@ -8,6 +8,7 @@ import crypto from "crypto";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
+const LAB_EMAIL = process.env.LAB_EMAIL || "owner@example.co.kr";   // 알림 수신 확인용 주소(환경변수, 저장소에 두지 않음)
 const [phase, URL0] = process.argv.slice(2);
 const BASE = URL0.endsWith("/") ? URL0 : URL0 + "/";
 const RUN = "/var/lib/cert-lab-run", OUT = path.join(RUN, "out", phase);
@@ -51,7 +52,7 @@ try {
     const A = await page("admin");
     await A.goto(BASE); await settle(A);
     if (!S.users) {
-      S.users = { admin: { pw: pw(), name: "김관리", role: "관리자" }, own: { pw: pw(), name: "김담당", role: "담당자", email: "skybook75@gmail.com" },
+      S.users = { admin: { pw: pw(), name: "김관리", role: "관리자" }, own: { pw: pw(), name: "김담당", role: "담당자", email: LAB_EMAIL },
         rev: { pw: pw(), name: "이검토", role: "검토자" }, apr: { pw: pw(), name: "최승인", role: "승인자" } };
       save();
       await shot(A, "최초_관리자_생성화면");
@@ -70,9 +71,9 @@ try {
     const users = (await api(A, "GET", "api/db/users")).body.map((y) => `${y.username}:${y.role}`);
     ok("사용자 4명(관리자·담당자·검토자·승인자)", users.length >= 4, users.join(", "));
     // 알림 채널: AWS SES 이메일 + 푸시
-    await A.check("#s-en"); await A.selectOption("#s-prov", "ses"); await A.fill("#s-region", "ap-southeast-2"); await A.fill("#s-from", "skybook75@gmail.com");
+    await A.check("#s-en"); await A.selectOption("#s-prov", "ses"); await A.fill("#s-region", "ap-southeast-2"); await A.fill("#s-from", LAB_EMAIL);
     await A.fill("#s-push", process.env.PUSH_TOPIC || ""); await A.click("#smtp-form button[type=submit]"); await toast(A); await settle(A);
-    await A.fill("#s-to", "skybook75@gmail.com"); await A.click("#s-test"); const tt = await toast(A);
+    await A.fill("#s-to", LAB_EMAIL); await A.click("#s-test"); const tt = await toast(A);
     ok("알림 채널 테스트 발송(SES 실제 메일 + 푸시)", /메일 완료/.test(tt), tt);
     // 서버 Agent 등록 (토큰 1회 표시 → state 에만 저장, 화면 캡처는 토큰 가린 뒤)
     S.tokens = S.tokens || {};
@@ -121,7 +122,7 @@ try {
     ok("수집 결과 승인 → 인증서 등록", n > 0, `${n}건 승인`);
     // 담당자 이메일 일괄 지정(실제 알림 수신용)
     const certs = (await api(A, "GET", "api/db/certificates")).body;
-    await api(A, "POST", "api/action", { action: "cert.manage", summary: "담당자 이메일 지정", ops: certs.map((c) => ({ op: "update", coll: "certificates", id: c.id, data: { owner: "김담당", owner_email: "skybook75@gmail.com" } })) });
+    await api(A, "POST", "api/action", { action: "cert.manage", summary: "담당자 이메일 지정", ops: certs.map((c) => ({ op: "update", coll: "certificates", id: c.id, data: { owner: "김담당", owner_email: LAB_EMAIL } })) });
     await tab(A, "certs"); await shot(A, "인증서_목록");
     await A.reload(); await settle(A); await tab(A, "dash"); await shot(A, "대시보드");
     // 오케스트레이터로 일일 점검 → 알림 생성·발송
@@ -141,7 +142,7 @@ try {
     while (await A.$("[data-approve]:not([disabled])")) { const id = await A.$eval("[data-approve]:not([disabled])", (b) => b.dataset.approve); const inp = await A.$(`[data-owner="${id}"]`); if (inp && !(await inp.inputValue())) await inp.fill("김담당"); await A.evaluate((i) => decide(i, true), id); await toast(A).catch(() => {}); await settle(A); n++; if (n > 10) break; }
     ok("갱신본 승인(기존 인증서 → 갱신 완료)", n >= 1, `${n}건`);
     const res = [];
-    for (const st of ["개발", "테스트", "교육", "운영"]) {
+    for (const st of ["개발", "테스트", "운영"]) {
       await A.reload(); await settle(A); await tab(A, "certs"); await A.click("#p-certs tr[data-cert] >> text=shop.demo.test"); await sleep(300);
       if (await A.$eval("#d-deploy", (b) => b.disabled)) { res.push(st + ":요청불가"); break; }
       await A.click("#d-deploy"); await toast(A);

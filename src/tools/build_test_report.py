@@ -21,7 +21,7 @@ RT = json.loads((BASE / "results" / "e2e_targets.json").read_text(encoding="utf-
 AWS = [  # AWS 실서버(시드니 ap-southeast-2) 관리자 시나리오 — 단계, 결과, 근거
     ("인프라", "CloudFormation 으로 EC2 4대(플랫폼 · web01 nginx · was01 Tomcat · win01 IIS Windows 2022) + 고정 IP + HTTPS(Let's Encrypt)", "통과", "https://certagent-ai.duckdns.org · SSM 원격 관리 4대 Online"),
     ("계정·권한", "관리자 화면에서 담당자·검토자·승인자 계정 생성(첫 로그인 비밀번호 변경)", "통과", "플랫폼 서버 안 자동 브라우저(Playwright)가 실제 HTTPS 주소에서 조작·녹화"),
-    ("알림 채널", "AWS SES 이메일 + ntfy 푸시 테스트 발송", "통과", "skybook75@gmail.com 수신 · 문자(SMS)는 계정 상위 정책(SCP)이 AWS 문자 서비스를 차단해 미검증"),
+    ("알림 채널", "AWS SES 이메일 + ntfy 푸시 테스트 발송", "통과", "담당자 메일(비공개 주소) 수신 · 문자(SMS)는 계정 상위 정책(SCP)이 AWS 문자 서비스를 차단해 미검증"),
     ("서버 Agent 등록", "web01(운영 배포 단계) · was01 · win01 등록, 토큰 1회 표시", "통과", "토큰은 해시만 저장"),
     ("PFX 비밀번호", "담당자가 was01·win01 폴더 범위로 비밀번호 암호화 등록", "통과", "AES-256-GCM · Agent 공개키(RSA-OAEP)로 감싸 전달"),
     ("수집", "web01 파일 3개→4건, was01 PFX(보관함 비밀번호로 열기)→3건, win01 PFX + Windows 인증서 저장소→3건", "통과", "개인키 파일 제외 · 위치 '호스트:경로'"),
