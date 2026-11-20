@@ -10,7 +10,7 @@ R = Path(__file__).resolve().parent.parent
 md = (R / "offline" / "README.md").read_text(encoding="utf-8")
 md = re.sub(r"^# .*\n", "", md, count=1)                                  # 제목은 머리말에서
 body = markdown.markdown(md, extensions=["tables", "fenced_code", "toc", "sane_lists"], extension_configs={"toc": {"slugify": lambda s, sep: re.sub(r"[^0-9A-Za-z가-힣]+", "-", s).strip("-")}})
-REL = f"https://github.com/skybook75/cert-agent/releases/download/v{VER}"
+REL = "../download"
 html = f"""<!doctype html>
 <html lang="ko">
 <head>

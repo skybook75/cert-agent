@@ -3,8 +3,8 @@
 인터넷이 안 되는 사내망에 **관리 플랫폼**(웹)과 **서버 Agent**(인증서가 있는 각 서버)를 설치하는 순서입니다.
 위에서부터 그대로 따라 하면 됩니다.
 
-- 내려받기: <https://github.com/skybook75/cert-agent/releases/tag/v1.0.0>
-- 웹으로 보기: <https://skybook75.github.io/cert-agent/install/>
+- 웹으로 보기·내려받기: <https://skybook75.github.io/cert-agent/install/>
+- 파일 직접 주소: `https://skybook75.github.io/cert-agent/download/<파일명>` (저장소 `download/` 폴더)
 - 소스: <https://github.com/skybook75/cert-agent> (`src/` 폴더)
 
 ---
@@ -38,9 +38,9 @@
 
 ```bash
 # Linux / macOS / WSL
-curl -LO https://github.com/skybook75/cert-agent/releases/download/v1.0.0/cert-agent-offline-1.0.0.tar.gz
-curl -LO https://github.com/skybook75/cert-agent/releases/download/v1.0.0/cert-agent-agent-1.0.0.zip
-curl -LO https://github.com/skybook75/cert-agent/releases/download/v1.0.0/SHA256SUMS-1.0.0.txt
+curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-offline-1.0.0.tar.gz
+curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-agent-1.0.0.zip
+curl -LO https://skybook75.github.io/cert-agent/download/SHA256SUMS-1.0.0.txt
 sha256sum -c SHA256SUMS-1.0.0.txt          # 둘 다 OK 가 나와야 합니다
 tar xzf cert-agent-offline-1.0.0.tar.gz
 ```

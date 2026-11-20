@@ -36,16 +36,16 @@ footer{color:var(--muted);font-size:13px;margin-top:40px}
 <p>v1.0.0 · 관리 플랫폼(Linux) + 서버 Agent(Linux·Windows) · 인터넷 없이 설치</p>
 </header>
 <div class="dl">
-<a href="https://github.com/skybook75/cert-agent/releases/download/v1.0.0/cert-agent-offline-1.0.0.tar.gz"><b>전체 묶음 내려받기</b><span>cert-agent-offline-1.0.0.tar.gz · 소스·설치 스크립트·Qdrant</span></a>
-<a href="https://github.com/skybook75/cert-agent/releases/download/v1.0.0/cert-agent-agent-1.0.0.zip"><b>Agent 만 내려받기</b><span>cert-agent-agent-1.0.0.zip · 각 서버에 복사</span></a>
-<a href="https://github.com/skybook75/cert-agent/releases/download/v1.0.0/SHA256SUMS-1.0.0.txt"><b>SHA-256 해시</b><span>반입 전·후 무결성 확인</span></a>
+<a href="../download/cert-agent-offline-1.0.0.tar.gz"><b>전체 묶음 내려받기</b><span>cert-agent-offline-1.0.0.tar.gz · 소스·설치 스크립트·Qdrant</span></a>
+<a href="../download/cert-agent-agent-1.0.0.zip"><b>Agent 만 내려받기</b><span>cert-agent-agent-1.0.0.zip · 각 서버에 복사</span></a>
+<a href="../download/SHA256SUMS-1.0.0.txt"><b>SHA-256 해시</b><span>반입 전·후 무결성 확인</span></a>
 <a href="https://github.com/skybook75/cert-agent/tree/main/src"><b>소스 보기 (GitHub)</b><span>src/ · offline/ (설치 스크립트)</span></a>
 </div>
 <p>인터넷이 안 되는 사내망에 <strong>관리 플랫폼</strong>(웹)과 <strong>서버 Agent</strong>(인증서가 있는 각 서버)를 설치하는 순서입니다.
 위에서부터 그대로 따라 하면 됩니다.</p>
 <ul>
-<li>내려받기: <a href="https://github.com/skybook75/cert-agent/releases/tag/v1.0.0">https://github.com/skybook75/cert-agent/releases/tag/v1.0.0</a></li>
-<li>웹으로 보기: <a href="https://skybook75.github.io/cert-agent/install/">https://skybook75.github.io/cert-agent/install/</a></li>
+<li>웹으로 보기·내려받기: <a href="https://skybook75.github.io/cert-agent/install/">https://skybook75.github.io/cert-agent/install/</a></li>
+<li>파일 직접 주소: <code>https://skybook75.github.io/cert-agent/download/&lt;파일명&gt;</code> (저장소 <code>download/</code> 폴더)</li>
 <li>소스: <a href="https://github.com/skybook75/cert-agent">https://github.com/skybook75/cert-agent</a> (<code>src/</code> 폴더)</li>
 </ul>
 <hr />
@@ -102,9 +102,9 @@ footer{color:var(--muted);font-size:13px;margin-top:40px}
 <hr />
 <h2 id="1-인터넷-PC-묶음-내려받기">1. [인터넷 PC] 묶음 내려받기</h2>
 <pre><code class="language-bash"># Linux / macOS / WSL
-curl -LO https://github.com/skybook75/cert-agent/releases/download/v1.0.0/cert-agent-offline-1.0.0.tar.gz
-curl -LO https://github.com/skybook75/cert-agent/releases/download/v1.0.0/cert-agent-agent-1.0.0.zip
-curl -LO https://github.com/skybook75/cert-agent/releases/download/v1.0.0/SHA256SUMS-1.0.0.txt
+curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-offline-1.0.0.tar.gz
+curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-agent-1.0.0.zip
+curl -LO https://skybook75.github.io/cert-agent/download/SHA256SUMS-1.0.0.txt
 sha256sum -c SHA256SUMS-1.0.0.txt          # 둘 다 OK 가 나와야 합니다
 tar xzf cert-agent-offline-1.0.0.tar.gz
 </code></pre>

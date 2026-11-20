@@ -38,3 +38,5 @@ done
 ( cd "$W" && rm -f "$OUT/cert-agent-agent-$VER.zip" && zip -qr "$OUT/cert-agent-agent-$VER.zip" agent )
 ( cd "$OUT" && sha256sum "$N.tar.gz" "cert-agent-agent-$VER.zip" > "SHA256SUMS-$VER.txt" )
 ls -l "$OUT"/*.tar.gz "$OUT"/*.zip "$OUT"/SHA256SUMS-*.txt
+# 7) GitHub Pages 내려받기 폴더로 복사(저장소 download/)
+mkdir -p "$R/download" && cp "$OUT/$N.tar.gz" "$OUT/cert-agent-agent-$VER.zip" "$OUT/SHA256SUMS-$VER.txt" "$R/download/"
