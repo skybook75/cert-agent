@@ -1,4 +1,4 @@
-# 인증서 관리 AI Agent — 폐쇄망 설치 가이드 (v1.0.0)
+# 인증서 관리 AI Agent — 폐쇄망 설치 가이드 (v1.0.1)
 
 인터넷이 안 되는 사내망에 **관리 플랫폼**(웹)과 **서버 Agent**(인증서가 있는 각 서버)를 설치하는 순서입니다.
 위에서부터 그대로 따라 하면 됩니다.
@@ -28,9 +28,9 @@
 
 | 파일 | 내용 |
 |---|---|
-| `cert-agent-offline-1.0.0.tar.gz` | 전체 묶음: 소스(`src/`), 설치 스크립트(`install/`), 준비 스크립트(`prepare/`), Qdrant 실행 파일(`bin/`), Agent 묶음(`agent/`) |
-| `cert-agent-agent-1.0.0.zip` | 각 서버에 복사할 Agent 만 (`cert_agent.py` + 설치 스크립트) |
-| `SHA256SUMS-1.0.0.txt` | 무결성 확인용 해시 |
+| `cert-agent-offline-1.0.1.tar.gz` | 전체 묶음: 소스(`src/`), 설치 스크립트(`install/`), 준비 스크립트(`prepare/`), Qdrant 실행 파일(`bin/`), Agent 묶음(`agent/`) |
+| `cert-agent-agent-1.0.1.zip` | 각 서버에 복사할 Agent 만 (`cert_agent.py` + 설치 스크립트) |
+| `SHA256SUMS-1.0.1.txt` | 무결성 확인용 해시 |
 
 ---
 
@@ -38,11 +38,11 @@
 
 ```bash
 # Linux / macOS / WSL
-curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-offline-1.0.0.tar.gz
-curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-agent-1.0.0.zip
-curl -LO https://skybook75.github.io/cert-agent/download/SHA256SUMS-1.0.0.txt
-sha256sum -c SHA256SUMS-1.0.0.txt          # 둘 다 OK 가 나와야 합니다
-tar xzf cert-agent-offline-1.0.0.tar.gz
+curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-offline-1.0.1.tar.gz
+curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-agent-1.0.1.zip
+curl -LO https://skybook75.github.io/cert-agent/download/SHA256SUMS-1.0.1.txt
+sha256sum -c SHA256SUMS-1.0.1.txt          # 둘 다 OK 가 나와야 합니다
+tar xzf cert-agent-offline-1.0.1.tar.gz
 ```
 
 Windows PC 라면 위 주소를 브라우저로 내려받고 PowerShell 에서 `Get-FileHash 파일명` 으로 해시를 비교합니다.
@@ -58,16 +58,16 @@ Windows PC 라면 위 주소를 브라우저로 내려받고 PowerShell 에서 `
 | Windows 서버에 Agent 를 설치한다 | `windows/`(Python 설치 파일 + cryptography 휠) |
 
 ```bash
-cd cert-agent-offline-1.0.0
+cd cert-agent-offline-1.0.1
 ./prepare/prepare_online.sh                 # 전부 (벡터 DB 안 쓰면 --no-vector)
 ```
 ```powershell
 # Windows 인터넷 PC
-cd cert-agent-offline-1.0.0
+cd cert-agent-offline-1.0.1
 powershell -ExecutionPolicy Bypass -File .\prepare\prepare_online.ps1        # 벡터 DB 안 쓰면 -NoVector
 ```
 
-끝나면 `cert-agent-offline-1.0.0` **폴더 전체**를 반입 매체에 담아 폐쇄망으로 옮깁니다.
+끝나면 `cert-agent-offline-1.0.1` **폴더 전체**를 반입 매체에 담아 폐쇄망으로 옮깁니다.
 반입 후 `sha256sum -c SHA256SUMS` (기본 묶음)와 `sha256sum -c SHA256SUMS.prepared` (채운 파일)로 확인합니다.
 
 ---
@@ -79,7 +79,7 @@ powershell -ExecutionPolicy Bypass -File .\prepare\prepare_online.ps1        # �
 ### 3-1. 가장 간단한 설치 (SQLite, HTTP 8000)
 
 ```bash
-cd cert-agent-offline-1.0.0
+cd cert-agent-offline-1.0.1
 sudo ./install/platform_install.sh
 ```
 
@@ -143,7 +143,7 @@ sudo ./install/platform_install.sh --db postgres --vector \
 
 ### 4-2. Linux 서버
 
-`cert-agent-agent-1.0.0.zip` 을 풀거나 묶음의 `agent/` 폴더를 서버에 복사한 뒤:
+`cert-agent-agent-1.0.1.zip` 을 풀거나 묶음의 `agent/` 폴더를 서버에 복사한 뒤:
 
 ```bash
 # nginx 서버 (교체 후 설정 검사 → 재적용 → 443 응답 지문 확인까지 자동, 실패 시 자동 원복)
