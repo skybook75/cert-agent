@@ -36,6 +36,7 @@ from urllib.parse import urlparse
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 import agents  # noqa: E402
+import certlib  # noqa: E402
 import vault as vault_mod  # noqa: E402
 import ops_agents  # noqa: E402
 import targets as targets_mod  # noqa: E402
@@ -55,6 +56,78 @@ AUDIT_EVENT = {"로그인": "auth.login", "로그인 실패": "auth.login_failed
                "수집 실행 요청": "collect.requested", "수집 실행(SSH)": "collect.ssh", "자가 진단": "maint.diagnose", "진단 항목 반영": "maint.fix"}
 MAX_BODY = 2 * 1024 * 1024
 LOCK = threading.RLock()
+
+# ───────────────────────────── 배포 게이트 (web/core.js 의 canRequestStage·deployChecks 와 같은 규칙을 서버에서 다시 검사)
+DEPLOY_STAGES = ("dev", "test", "prod")
+STAGE_NAME = {"dev": "개발", "test": "테스트", "prod": "운영"}
+
+
+def _sans(c):
+    return [v.strip().lower() for v in str(c.get("san") or c.get("subject_cn") or "").split(",") if v.strip()]
+
+
+def deploy_checks(cert, stage, now=None):
+    """자동 점검 항목 → [(항목, 통과, 설명)] — 화면의 deployChecks 와 같은 기준."""
+    out = []
+    nb, na = cert.get("not_before") or "1970-01-01T00:00:00+00:00", cert.get("not_after")
+    if not na:
+        return [("유효기간", False, "만료일 없음")]
+    st, days = certlib.status_of(nb, na, now)
+    out.append(("유효기간", st not in ("만료", "사용 전"), st))
+    out.append(("남은 기간 30일 초과", days > 30, f"남은 {days}일"))
+    alg = str(cert.get("signature_algorithm") or "").lower()
+    out.append(("서명 알고리즘", bool(alg) and not re.search(r"sha1|md5", alg), cert.get("signature_algorithm") or "-"))
+    pk = str(cert.get("public_key") or "")
+    m = re.search(r"(\d{3,5})bit", pk)
+    key_ok = (int(m.group(1)) >= 2048 if m else False) if pk.startswith("RSA") else (pk.startswith("EC") and not re.search(r"secp192|secp224", pk))
+    out.append(("공개키 강도", key_ok, pk or "-"))
+    cn = str(cert.get("subject_cn", "")).lower()
+    env = next((e for e in STORE.list("environments") if e.get("stage") == stage and str(e.get("subject_cn", "")).lower() == cn), None)
+    cur = STORE.get("certificates", env["cert_id"]) if env and env.get("cert_id") else None
+    if cur and cur.get("id") != cert.get("id"):
+        missing = [v for v in _sans(cur) if v not in _sans(cert)]
+        out.append(("도메인 유지(현재 배포본 대비)", not missing, ", ".join(missing) or "동일"))
+        out.append(("만료일 연장", datetime.fromisoformat(cert["not_after"]) > datetime.fromisoformat(cur["not_after"]),
+                    f"{cur.get('not_after', '')[:10]} → {cert['not_after'][:10]}"))
+    out.append(("인증서 파일 위치", bool(cert.get("locations")), (cert.get("locations") or ["없음"])[0]))
+    return out
+
+
+def deploy_failure_notice(env, host, rec):
+    """서버 적용 실패(자동 원복) 알림 생성 → 알림 id. 메일·푸시 발송은 호출한 쪽에서 별도 스레드로."""
+    cert = STORE.get("certificates", rec.get("failed_cert_id") or env.get("cert_id") or "") or {}
+    cn, stage = env.get("subject_cn", ""), env.get("stage_name", "")
+    nid = f"n_dep_{env['id']}_{re.sub(r'[^A-Za-z0-9]', '', host)[:30]}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+    title = f"[배포 실패] {cn} {stage} 서버({host}) 인증서 교체 실패 — 자동 원복"
+    body = (f"{host} 서버에서 {cn} 인증서 교체가 실패해 서버 Agent가 이전 인증서로 자동 원복했습니다. "
+            f"서비스는 이전 인증서로 계속 동작합니다. 실패 내용: {rec.get('detail', '')[:300]}. "
+            f"플랫폼 [배포] 탭에서 원인을 확인한 뒤 다시 요청하세요.")
+    STORE.set("notifications", nid, {"cert_id": cert.get("id") or env.get("cert_id"), "level": "배포 실패", "rank": 4, "title": title,
+                                     "body": body, "recipient": cert.get("owner", ""), "created_at": now_iso(),
+                                     "read": False, "closed": False})
+    return nid
+
+
+def stage_gate(cert, stage):
+    """단계 순서: 개발 → 테스트 → 운영. 앞 단계가 '배포 완료'가 아니면 요청·승인 거부."""
+    if stage not in DEPLOY_STAGES:
+        raise Http(400, "알 수 없는 배포 단계")
+    if not cert or not cert.get("fingerprint"):
+        raise Http(409, "수집·검증되지 않은 인증서는 배포할 수 없습니다")
+    if cert.get("replaced_by"):
+        raise Http(409, "이미 갱신본으로 교체된 인증서입니다")
+    i = DEPLOY_STAGES.index(stage)
+    if i > 0:
+        prev = STORE.get("deployments", f"dp_{cert['id']}_{DEPLOY_STAGES[i - 1]}")
+        if not prev or prev.get("status") != "배포 완료":
+            raise Http(409, f"단계 순서 위반: {STAGE_NAME[DEPLOY_STAGES[i - 1]]} 단계 배포 완료 후에만 {STAGE_NAME[stage]} 배포를 진행할 수 있습니다")
+
+
+def checks_gate(cert, stage):
+    bad = [f"{n}({d})" for n, ok, d in deploy_checks(cert, stage) if not ok]
+    if bad:
+        raise Http(409, "자동 점검 실패: " + ", ".join(bad))
+
 
 # ───────────────────────────── 역할·권한 (web/core.js 의 PERMS 와 같은 표)
 ROLES = ["관리자", "담당자", "검토자", "승인자", "조회자"]
@@ -691,6 +764,11 @@ class Handler(BaseHTTPRequestHandler):
                 STORE.update("environments", env_id, {"applied": applied})
                 STORE.update("agents", ag["id"], {"last_seen": now_iso(), "last_result": f"배포 {env.get('stage_name')} {env.get('subject_cn')} {'성공' if b.get('ok') else '실패·자동 원복'}"})
                 self._audit(actor, "서버 적용" if b.get("ok") else "서버 적용 실패", f"{host} {env.get('stage_name')} {env.get('subject_cn')}: {rec['detail'][:200]}")
+                nid = None
+                if not b.get("ok"):                       # 적용 실패 → 담당자에게 즉시 알림(알림함 + 메일·푸시)
+                    nid = deploy_failure_notice(env, host, rec)
+            if nid:
+                threading.Thread(target=agents.mail_notifications, args=(STORE, [nid], "배포 Agent"), daemon=True).start()
             return self._json({"ok": True})
         raise Http(404, "not found")
 
@@ -939,6 +1017,12 @@ class Handler(BaseHTTPRequestHandler):
                     cur = STORE.get("deployments", o["id"])
                     if cur and cur.get("status") in ("요청", "검토 통과", "배포 완료"):
                         raise Http(409, "이미 진행 중이거나 완료된 배포 단계입니다")
+                    d = o.get("data") or {}
+                    cert = STORE.get("certificates", d.get("cert_id", ""))
+                    if o["id"] != f"dp_{d.get('cert_id')}_{d.get('stage')}":
+                        raise Http(400, "배포 문서 ID 가 인증서·단계와 다릅니다")
+                    stage_gate(cert, d.get("stage"))      # 개발 → 테스트 → 운영 순서
+                    checks_gate(cert, d.get("stage"))     # 30일·서명 알고리즘·키 강도·만료일 연장 등
                     o["data"]["status"] = "요청"
             return {}
         dep_op = next((o for o in ops if o["coll"] == "deployments"), None)
@@ -952,6 +1036,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise Http(409, f"검토할 수 없는 상태입니다 ({dep.get('status')})")
             if req_name == user["name"]:
                 raise Http(403, "직무 분리: 배포 요청자는 검토할 수 없습니다")
+            if new_status == "검토 통과":                 # 화면과 별개로 서버가 자동 점검을 다시 수행
+                checks_gate(STORE.get("certificates", dep.get("cert_id", "")), dep.get("stage"))
             return {}
         if action == "deploy.approve":
             if dep.get("status") != "검토 통과" or new_status != "배포 완료":
@@ -959,6 +1045,7 @@ class Handler(BaseHTTPRequestHandler):
             rev_name = str((dep.get("review") or {}).get("reviewed_by", "")).split("(")[0]
             if user["name"] in (req_name, rev_name):
                 raise Http(403, "직무 분리: 요청자·검토자는 승인할 수 없습니다")
+            stage_gate(STORE.get("certificates", dep.get("cert_id", "")), dep.get("stage"))   # 앞 단계가 원복됐으면 승인 거부
             env_op = next((o for o in ops if o["coll"] == "environments"), None)
             ed = (env_op or {}).get("data", {})
             if not env_op or ed.get("cert_id") != dep["cert_id"] or ed.get("stage") != dep["stage"] or ed.get("subject_cn") != dep["subject_cn"]:

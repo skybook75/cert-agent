@@ -308,6 +308,8 @@
     "noti.read": ["관리자", "담당자"], "mail.send": ["관리자"], "users.manage": ["관리자"], "settings.manage": ["관리자"],
     "audit.view": ["관리자", "검토자", "승인자", "조회자"], "guide.manage": ["관리자"],
     "secret.manage": ["관리자", "담당자"],
+    "ops.manage": ["관리자"],
+    "target.manage": ["관리자", "담당자"],
   };
   const OWNER_SCOPED = ["cert.renewal", "deploy.request", "noti.read"];   // 담당자는 본인 담당 인증서에만
   function can(role, action) { return (PERMS[action] || []).includes(role); }

@@ -214,14 +214,13 @@ try {
   await PO.click("#p-certs tbody tr[data-cert]"); await sleep(200);
   const preDis = await PO.$eval("#d-deploy", (b) => b.disabled), preWhy = await PO.textContent("#cert-detail");
   ok("요청 전 사전 검사: 만료 임박 인증서는 배포 요청 단계에서 차단·사유 표시", preDis && preWhy.includes("남은 기간 30일 초과") && preWhy.includes("갱신본"), preWhy.match(/검토 자동 검증을 통과하지 못해[^—]*/)?.[0]);
-  // 화면을 거치지 않은 요청(API 직접 호출)도 검토 단계에서 걸러지는지 확인
-  await PO.evaluate(async () => { const c = S.data.certificates.find((x) => x.subject_cn === "pay.example.co.kr" && !x.replaced_by); await act("deploy.request", C.requestDeployOps(c, "dev", actor(), nowIso(), "개발 서버 반영"), "API 직접 요청"); });
-  count("배포 요청");
-  await RV.reload(); await settle(RV); await tab(RV, "배포");
-  const chk = await RV.textContent("#p-deploy");
-  ok("검토자 자동 검증: 남은 5일 → '남은 기간 30일 초과' 실패", chk.includes("✗") && chk.includes("남은 기간 30일 초과"), "검토 통과 버튼 비활성");
-  ok("검증 실패 시 통과 불가(반려만)", await RV.$eval("[data-rvpass]", (b) => b.disabled));
-  await RV.fill("[data-rvnote]", "만료 임박 인증서, 갱신본으로 다시 요청"); await RV.click("[data-rvfail]"); await toastText(RV); await settle(RV); count("배포 검토");
+  // 화면을 거치지 않은 요청(API 직접 호출)도 서버가 같은 자동 점검으로 거부하는지 확인
+  const direct = await PO.evaluate(async () => { const c = S.data.certificates.find((x) => x.subject_cn === "pay.example.co.kr" && !x.replaced_by);
+    try { await act("deploy.request", C.requestDeployOps(c, "dev", actor(), nowIso(), "개발 서버 반영"), "API 직접 요청"); return "통과"; } catch (e) { return e.message; } });
+  ok("화면 우회(API 직접 요청)도 서버가 자동 점검으로 거부: 남은 기간 30일 이하", direct.includes("자동 점검 실패") && direct.includes("남은 기간 30일 초과"), direct);
+  await RV.reload(); await settle(RV);
+  const pend = await RV.evaluate(() => S.data.deployments.filter((d) => d.subject_cn === "pay.example.co.kr").length);
+  ok("거부된 요청은 배포 요청 기록이 생기지 않음(검토 대기 없음)", pend === 0, `pay.example.co.kr 배포 요청 ${pend}건`);
   // portal(200일) 개발 배포
   const KO = await ctx("kim");
   await login(KO, "kim", "Temp1234", "Kim12345");

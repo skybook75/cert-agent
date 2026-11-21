@@ -1,0 +1,22 @@
+[
+ {
+  "name": "역할 5종 일치",
+  "pass": true,
+  "detail": "관리자·담당자·검토자·승인자·조회자"
+ },
+ {
+  "name": "작업별 권한표 일치",
+  "pass": true,
+  "detail": "20개 작업"
+ },
+ {
+  "name": "담당 범위 작업 일치",
+  "pass": true,
+  "detail": "cert.renewal,deploy.request,noti.read"
+ },
+ {
+  "name": "알림 규칙 일치(대장 등록 건 포함)",
+  "pass": true,
+  "detail": "n_c_a_exp, n_c_b_d7, n_c_c_d30, n_x_e_d30"
+ }
+]
