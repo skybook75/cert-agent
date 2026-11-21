@@ -1,0 +1,2 @@
+20f6cdafbf863da56225218cfd26b315688e61dc041eecb537956c83071f36d9  cert-agent-offline-1.0.1.tar.gz
+71903e08bba53d9a46ac17681c8a77420f21d0cbeeb99c6faf9e9d8f14c1e134  cert-agent-agent-1.0.1.zip

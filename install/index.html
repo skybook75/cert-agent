@@ -33,12 +33,12 @@ footer{color:var(--muted);font-size:13px;margin-top:40px}
 <main>
 <header>
 <h1>인증서 관리 AI Agent — 폐쇄망 설치 가이드</h1>
-<p>v1.0.0 · 관리 플랫폼(Linux) + 서버 Agent(Linux·Windows) · 인터넷 없이 설치</p>
+<p>v1.0.1 · 관리 플랫폼(Linux) + 서버 Agent(Linux·Windows) · 인터넷 없이 설치</p>
 </header>
 <div class="dl">
-<a href="../download/cert-agent-offline-1.0.0.tar.gz"><b>전체 묶음 내려받기</b><span>cert-agent-offline-1.0.0.tar.gz · 소스·설치 스크립트·Qdrant</span></a>
-<a href="../download/cert-agent-agent-1.0.0.zip"><b>Agent 만 내려받기</b><span>cert-agent-agent-1.0.0.zip · 각 서버에 복사</span></a>
-<a href="../download/SHA256SUMS-1.0.0.txt"><b>SHA-256 해시</b><span>반입 전·후 무결성 확인</span></a>
+<a href="../download/cert-agent-offline-1.0.1.tar.gz"><b>전체 묶음 내려받기</b><span>cert-agent-offline-1.0.1.tar.gz · 소스·설치 스크립트·Qdrant</span></a>
+<a href="../download/cert-agent-agent-1.0.1.zip"><b>Agent 만 내려받기</b><span>cert-agent-agent-1.0.1.zip · 각 서버에 복사</span></a>
+<a href="../download/SHA256SUMS-1.0.1.txt"><b>SHA-256 해시</b><span>반입 전·후 무결성 확인</span></a>
 <a href="https://github.com/skybook75/cert-agent/tree/main/src"><b>소스 보기 (GitHub)</b><span>src/ · offline/ (설치 스크립트)</span></a>
 </div>
 <p>인터넷이 안 되는 사내망에 <strong>관리 플랫폼</strong>(웹)과 <strong>서버 Agent</strong>(인증서가 있는 각 서버)를 설치하는 순서입니다.
@@ -86,15 +86,15 @@ footer{color:var(--muted);font-size:13px;margin-top:40px}
 </thead>
 <tbody>
 <tr>
-<td><code>cert-agent-offline-1.0.0.tar.gz</code></td>
+<td><code>cert-agent-offline-1.0.1.tar.gz</code></td>
 <td>전체 묶음: 소스(<code>src/</code>), 설치 스크립트(<code>install/</code>), 준비 스크립트(<code>prepare/</code>), Qdrant 실행 파일(<code>bin/</code>), Agent 묶음(<code>agent/</code>)</td>
 </tr>
 <tr>
-<td><code>cert-agent-agent-1.0.0.zip</code></td>
+<td><code>cert-agent-agent-1.0.1.zip</code></td>
 <td>각 서버에 복사할 Agent 만 (<code>cert_agent.py</code> + 설치 스크립트)</td>
 </tr>
 <tr>
-<td><code>SHA256SUMS-1.0.0.txt</code></td>
+<td><code>SHA256SUMS-1.0.1.txt</code></td>
 <td>무결성 확인용 해시</td>
 </tr>
 </tbody>
@@ -102,11 +102,11 @@ footer{color:var(--muted);font-size:13px;margin-top:40px}
 <hr />
 <h2 id="1-인터넷-PC-묶음-내려받기">1. [인터넷 PC] 묶음 내려받기</h2>
 <pre><code class="language-bash"># Linux / macOS / WSL
-curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-offline-1.0.0.tar.gz
-curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-agent-1.0.0.zip
-curl -LO https://skybook75.github.io/cert-agent/download/SHA256SUMS-1.0.0.txt
-sha256sum -c SHA256SUMS-1.0.0.txt          # 둘 다 OK 가 나와야 합니다
-tar xzf cert-agent-offline-1.0.0.tar.gz
+curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-offline-1.0.1.tar.gz
+curl -LO https://skybook75.github.io/cert-agent/download/cert-agent-agent-1.0.1.zip
+curl -LO https://skybook75.github.io/cert-agent/download/SHA256SUMS-1.0.1.txt
+sha256sum -c SHA256SUMS-1.0.1.txt          # 둘 다 OK 가 나와야 합니다
+tar xzf cert-agent-offline-1.0.1.tar.gz
 </code></pre>
 <p>Windows PC 라면 위 주소를 브라우저로 내려받고 PowerShell 에서 <code>Get-FileHash 파일명</code> 으로 해시를 비교합니다.</p>
 <h2 id="2-인터넷-PC-추가-파일-채우기-필요할-때만">2. [인터넷 PC] 추가 파일 채우기 (필요할 때만)</h2>
@@ -133,20 +133,20 @@ tar xzf cert-agent-offline-1.0.0.tar.gz
 </tr>
 </tbody>
 </table>
-<pre><code class="language-bash">cd cert-agent-offline-1.0.0
+<pre><code class="language-bash">cd cert-agent-offline-1.0.1
 ./prepare/prepare_online.sh                 # 전부 (벡터 DB 안 쓰면 --no-vector)
 </code></pre>
 <pre><code class="language-powershell"># Windows 인터넷 PC
-cd cert-agent-offline-1.0.0
+cd cert-agent-offline-1.0.1
 powershell -ExecutionPolicy Bypass -File .\prepare\prepare_online.ps1        # 벡터 DB 안 쓰면 -NoVector
 </code></pre>
-<p>끝나면 <code>cert-agent-offline-1.0.0</code> <strong>폴더 전체</strong>를 반입 매체에 담아 폐쇄망으로 옮깁니다.
+<p>끝나면 <code>cert-agent-offline-1.0.1</code> <strong>폴더 전체</strong>를 반입 매체에 담아 폐쇄망으로 옮깁니다.
 반입 후 <code>sha256sum -c SHA256SUMS</code> (기본 묶음)와 <code>sha256sum -c SHA256SUMS.prepared</code> (채운 파일)로 확인합니다.</p>
 <hr />
 <h2 id="3-폐쇄망-관리-플랫폼-설치">3. [폐쇄망] 관리 플랫폼 설치</h2>
 <p>플랫폼 서버에 묶음 폴더를 복사한 뒤 <strong>root</strong> 로 실행합니다. OS 패키지(Python·PostgreSQL·nginx)는 사내 dnf 저장소(미러·ISO)에서 설치합니다.</p>
 <h3 id="3-1-가장-간단한-설치-SQLite-HTTP-8000">3-1. 가장 간단한 설치 (SQLite, HTTP 8000)</h3>
-<pre><code class="language-bash">cd cert-agent-offline-1.0.0
+<pre><code class="language-bash">cd cert-agent-offline-1.0.1
 sudo ./install/platform_install.sh
 </code></pre>
 <h3 id="3-2-운영-권장-설치-PostgreSQL-벡터-DB-HTTPS">3-2. 운영 권장 설치 (PostgreSQL + 벡터 DB + HTTPS)</h3>
@@ -259,7 +259,7 @@ sudo ./install/platform_install.sh
 <li>배포 단계: <code>수집만</code> 또는 <code>개발/테스트/운영 서버(배포 적용)</code> — 승인된 인증서 교체를 이 서버에 직접 적용할지 정합니다.</li>
 </ul>
 <h3 id="4-2-Linux-서버">4-2. Linux 서버</h3>
-<p><code>cert-agent-agent-1.0.0.zip</code> 을 풀거나 묶음의 <code>agent/</code> 폴더를 서버에 복사한 뒤:</p>
+<p><code>cert-agent-agent-1.0.1.zip</code> 을 풀거나 묶음의 <code>agent/</code> 폴더를 서버에 복사한 뒤:</p>
 <pre><code class="language-bash"># nginx 서버 (교체 후 설정 검사 → 재적용 → 443 응답 지문 확인까지 자동, 실패 시 자동 원복)
 sudo ./agent_install.sh --platform https://cert.corp.local --token &lt;토큰&gt; --scan /etc/nginx/ssl --nginx
 
